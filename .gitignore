@@ -5,3 +5,7 @@ build/
 .DS_Store
 coverage/
 *.log
+# Prevent compiled JS from leaking into src/
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts

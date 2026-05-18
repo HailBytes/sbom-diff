@@ -1,4 +1,29 @@
-// @hailbytes/sbom-diff
-// TODO: Implement diff(oldSBOM, newSBOM) -> ChangeReport
+/**
+ * @hailbytes/sbom-diff
+ *
+ * Diff two CycloneDX or SPDX SBOMs and produce human-readable change reports.
+ * Highlights added, removed, upgraded dependencies and new CVEs.
+ *
+ * @example
+ * ```ts
+ * import { parse, diff, renderReport } from '@hailbytes/sbom-diff';
+ *
+ * const oldSBOM = parse(oldJSON);
+ * const newSBOM = parse(newJSON);
+ * const report = diff(oldSBOM, newSBOM);
+ * console.log(renderReport(report, 'markdown'));
+ * ```
+ */
 
-export {};
+export { parse, parseCycloneDX, parseSPDX, detectFormat } from './parser.js';
+export { diff } from './diff.js';
+export { renderReport } from './reporter.js';
+export type {
+  SBOM,
+  Component,
+  CVEEntry,
+  ChangeReport,
+  VersionChange,
+  SBOMFormat,
+  ReportFormat,
+} from './types.js';
