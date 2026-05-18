@@ -1,0 +1,35 @@
+{
+  "name": "@hailbytes/sbom-diff",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Diff two CycloneDX or SPDX SBOMs and produce human-readable change reports. Highlights added, removed, upgraded dependencies and new CVEs.",
+  "type": "module",
+  "license": "MIT",
+  "author": "HailBytes, LLC",
+  "keywords": [
+    "sbom",
+    "cyclonedx",
+    "spdx",
+    "supply-chain-security",
+    "dependency-management",
+    "cve",
+    "vulnerability-management",
+    "diff",
+    "hailbytes"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HailBytes/sbom-diff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HailBytes/sbom-diff/issues"
+  },
+  "homepage": "https://hailbytes.com",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo 'lint placeholder - add eslint when ready'",
+    "test": "echo 'test placeholder - add vitest when ready' && exit 0"
+  }
+}
