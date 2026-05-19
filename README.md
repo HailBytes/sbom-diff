@@ -42,3 +42,6 @@ const report = await diff(oldSBOM, newSBOM);
 - [`@hailbytes/caiq-lite`](https://github.com/HailBytes/caiq-lite) — CSA CAIQ-Lite schema and validator
 - [`@hailbytes/asm-scope-parser`](https://github.com/HailBytes/asm-scope-parser) — Attack surface management scope parsing
 - [HailBytes](https://hailbytes.com)
+---
+
+*Part of the [HailBytes](https://hailbytes.com) open-source security toolkit.*
