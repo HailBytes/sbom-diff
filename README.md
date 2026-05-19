@@ -2,15 +2,14 @@
 
 > Diff two CycloneDX or SPDX SBOMs and produce human-readable change reports. Highlights added, removed, upgraded dependencies and new CVEs.
 
-![Status: Incubation — not yet published to npm](https://img.shields.io/badge/status-incubation-orange)
+[![npm version](https://img.shields.io/npm/v/%40hailbytes%2Fsbom-diff.svg)](https://www.npmjs.com/package/%40hailbytes%2Fsbom-diff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Planned npm package:** `@hailbytes/sbom-diff`
-
-## Planned Audience
+## Who Is This For
 
 Security engineers, DevSecOps teams, and supply-chain risk analysts who need to track dependency changes between software releases, detect newly introduced CVEs, and produce auditable SBOM diff reports.
 
-## Planned API
+## API
 
 ### CLI
 ```bash
