@@ -1,6 +1,6 @@
 {
   "name": "@hailbytes/sbom-diff",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "description": "Diff two CycloneDX or SPDX SBOMs and produce human-readable change reports. Highlights added, removed, upgraded dependencies and new CVEs.",
   "type": "module",
   "license": "MIT",
