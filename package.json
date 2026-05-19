@@ -1,7 +1,6 @@
 {
   "name": "@hailbytes/sbom-diff",
   "version": "0.0.1",
-  "private": true,
   "description": "Diff two CycloneDX or SPDX SBOMs and produce human-readable change reports. Highlights added, removed, upgraded dependencies and new CVEs.",
   "type": "module",
   "license": "MIT",
@@ -34,7 +33,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "cli": "node dist/cli.js"
+    "cli": "node dist/cli.js",
+    "prepublishOnly": "npm run build"
   },
   "exports": {
     ".": {
@@ -58,5 +58,9 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.3",
     "vitest": "^4.1.6"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
