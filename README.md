@@ -1,4 +1,6 @@
 # @hailbytes/sbom-diff
+![npm](https://img.shields.io/npm/dt/@hailbytes/sbom-diff)
+
 
 > Diff two CycloneDX or SPDX SBOMs and produce human-readable change reports. Highlights added, removed, upgraded dependencies and new CVEs.
 
