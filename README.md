@@ -8,6 +8,7 @@
 [![npm downloads](https://img.shields.io/npm/dw/%40hailbytes%2Fsbom-diff.svg)](https://www.npmjs.com/package/@hailbytes/sbom-diff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/%40hailbytes%2Fsbom-diff)](https://bundlephobia.com/package/@hailbytes/sbom-diff)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-davidhailbytes-blue?logo=linkedin&style=flat)](https://www.linkedin.com/in/davidhailbytes/)
 
 ---
 
