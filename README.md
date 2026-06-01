@@ -42,6 +42,27 @@ npx @hailbytes/sbom-diff old.json new.json --format json
 npx @hailbytes/sbom-diff old.json new.json --format markdown
 ```
 
+### CI/CD gate
+
+Use `--fail-on` to exit with a non-zero status when the diff matches one or
+more conditions — turning the diff into a build gate. Conditions are
+comma-separated:
+
+| Condition | Fails when… |
+|-----------|-------------|
+| `any` | any component is added, removed, or upgraded, or any new CVE appears |
+| `added` / `removed` / `upgraded` | any component is added / removed / upgraded |
+| `major` | any major version bump occurs |
+| `new-cves` | any new CVE is introduced |
+| `low` / `medium` / `high` / `critical` | any new CVE at or above that severity |
+
+```bash
+# Fail the pipeline if a new critical CVE or a major version bump appears
+npx @hailbytes/sbom-diff old.json new.json --fail-on critical,major
+```
+
+Exit codes: `0` = no gated changes, `1` = gate triggered (or invalid input).
+
 ### Programmatic
 ```ts
 import { diff } from '@hailbytes/sbom-diff';
@@ -52,6 +73,16 @@ console.log(report.added);    // Component[] — newly added packages
 console.log(report.removed);  // Component[] — packages removed
 console.log(report.upgraded); // { from: Component, to: Component }[]
 console.log(report.newCVEs);  // CVE[] — vulnerabilities in new packages
+```
+
+```ts
+import { parse, diff, evaluateGate } from '@hailbytes/sbom-diff';
+
+const report = diff(parse(oldJSON), parse(newJSON));
+const gate = evaluateGate(report, ['critical', 'major']);
+if (gate.shouldFail) {
+  throw new Error(`SBOM gate failed: ${gate.reasons.join('; ')}`);
+}
 ```
 
 ---

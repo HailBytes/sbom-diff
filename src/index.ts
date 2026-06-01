@@ -18,6 +18,12 @@
 export { parse, parseCycloneDX, parseSPDX, detectFormat } from './parser.js';
 export { diff } from './diff.js';
 export { renderReport } from './reporter.js';
+export {
+  evaluateGate,
+  parseGateConditions,
+  ALL_GATE_CONDITIONS,
+} from './gate.js';
+export type { GateCondition, GateResult } from './gate.js';
 export type {
   SBOM,
   Component,
