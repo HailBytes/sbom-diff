@@ -10,21 +10,10 @@ import { readFile } from 'node:fs/promises';
 import { parse } from './parser.js';
 import { diff } from './diff.js';
 import { renderReport } from './reporter.js';
-import type { ReportFormat } from './types.js';
+import { parseArgs, ArgError } from './args.js';
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-
-  const positional = args.filter(a => !a.startsWith('--'));
-  if (positional.length < 2) {
-    console.error('Usage: sbom-diff <old.json> <new.json> [--format text|json|markdown]');
-    process.exit(1);
-  }
-
-  const [oldPath, newPath] = positional;
-  const formatArg = args.find(a => a.startsWith('--format='))?.split('=')[1]
-    ?? args[args.indexOf('--format') + 1];
-  const format: ReportFormat = (formatArg as ReportFormat) ?? 'text';
+  const { oldPath, newPath, format } = parseArgs(process.argv.slice(2));
 
   const [oldRaw, newRaw] = await Promise.all([
     readFile(oldPath, 'utf-8'),
@@ -38,7 +27,12 @@ async function main(): Promise<void> {
   console.log(renderReport(report, format));
 }
 
-main().catch(err => {
-  console.error(err);
+main().catch((err) => {
+  // Argument errors are user-facing: show a clean message, not a stack trace.
+  if (err instanceof ArgError) {
+    console.error(err.message);
+  } else {
+    console.error(err);
+  }
   process.exit(1);
 });
