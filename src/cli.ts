@@ -22,9 +22,16 @@ async function main(): Promise<void> {
   }
 
   const [oldPath, newPath] = positional;
+  const flagIndex = args.indexOf('--format');
   const formatArg = args.find(a => a.startsWith('--format='))?.split('=')[1]
-    ?? args[args.indexOf('--format') + 1];
+    ?? (flagIndex !== -1 ? args[flagIndex + 1] : undefined);
   const format: ReportFormat = (formatArg as ReportFormat) ?? 'text';
+
+  const validFormats: ReportFormat[] = ['text', 'json', 'markdown'];
+  if (!validFormats.includes(format)) {
+    console.error(`Unknown format: ${format}. Use one of: ${validFormats.join(', ')}`);
+    process.exit(1);
+  }
 
   const [oldRaw, newRaw] = await Promise.all([
     readFile(oldPath, 'utf-8'),

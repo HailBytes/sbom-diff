@@ -4,8 +4,12 @@ import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange } from './t
  * Compare two parsed SBOMs and produce a ChangeReport.
  *
  * Matching strategy:
- * 1. By purl (most precise)
+ * 1. By version-agnostic purl (most precise)
  * 2. By name (fallback)
+ *
+ * The purl is stripped of its version so the same package matches across
+ * SBOMs even when its version changes — this is what enables upgrade
+ * detection (see {@link componentKey}).
  */
 export function diff(a: SBOM, b: SBOM): ChangeReport {
   const aMap = buildComponentMap(a.components);
@@ -63,11 +67,26 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
   for (const comp of components) {
-    // Prefer purl as key, fall back to name
-    const key = comp.purl ?? comp.name;
-    map.set(key, comp);
+    map.set(componentKey(comp), comp);
   }
   return map;
+}
+
+/**
+ * Build a version-agnostic identity key for a component so the same package
+ * matches across SBOMs even when its version changes (enabling upgrade
+ * detection). purls embed the version after "@"
+ * (e.g. "pkg:npm/lodash@4.17.21"), so we strip everything from the first
+ * literal "@" onward. Scoped npm namespaces encode their "@" as "%40", so the
+ * first literal "@" is always the version delimiter. Falls back to name when
+ * no purl is present.
+ */
+function componentKey(comp: Component): string {
+  if (comp.purl) {
+    const at = comp.purl.indexOf('@');
+    return at === -1 ? comp.purl : comp.purl.slice(0, at);
+  }
+  return comp.name;
 }
 
 /**

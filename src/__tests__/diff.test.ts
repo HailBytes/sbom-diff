@@ -42,14 +42,27 @@ describe('diff', () => {
     expect(report.removed[0].name).toBe('moment');
   });
 
-  it('detects version upgrades', () => {
+  it('detects version upgrades when matched by versioned purl', () => {
+    // purls embed the version, but the same package should still be matched
+    // across versions so the change is reported as an upgrade, not add/remove.
     const a = makesbom([{ name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20' }]);
     const b = makesbom([{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' }]);
     const report = diff(a, b);
-    // Different purl = treated as add/remove (purl includes version)
-    // With our current purl-based key: 4.17.20 -> removed, 4.17.21 -> added
-    // This is correct behavior — different purls are different packages
-    expect(report.added.length + report.removed.length + report.upgraded.length).toBeGreaterThan(0);
+    expect(report.added).toHaveLength(0);
+    expect(report.removed).toHaveLength(0);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].from).toBe('4.17.20');
+    expect(report.upgraded[0].to).toBe('4.17.21');
+  });
+
+  it('matches scoped npm packages across versions', () => {
+    // Scoped packages encode the namespace "@" as "%40"; only the version "@"
+    // is literal, so the package must still match across versions.
+    const a = makesbom([{ name: '@babel/core', version: '7.0.0', purl: 'pkg:npm/%40babel/core@7.0.0' }]);
+    const b = makesbom([{ name: '@babel/core', version: '7.1.0', purl: 'pkg:npm/%40babel/core@7.1.0' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].to).toBe('7.1.0');
   });
 
   it('detects version upgrades when matched by name (no purl)', () => {
