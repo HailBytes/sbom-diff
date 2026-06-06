@@ -63,11 +63,33 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
   for (const comp of components) {
-    // Prefer purl as key, fall back to name
-    const key = comp.purl ?? comp.name;
-    map.set(key, comp);
+    map.set(componentKey(comp), comp);
   }
   return map;
+}
+
+/**
+ * Build a version-independent identity key for a component, so the same
+ * package at two different versions matches and is reported as an upgrade
+ * rather than a remove + add.
+ *
+ * purls embed the version after the version delimiter "@" (e.g.
+ * "pkg:npm/lodash@4.17.21"), so we strip it. We fall back to the bare name
+ * when no purl is present.
+ */
+function componentKey(comp: Component): string {
+  return comp.purl ? stripPurlVersion(comp.purl) : comp.name;
+}
+
+/**
+ * Remove the version (and any trailing qualifiers/subpath) from a purl,
+ * leaving the version-independent coordinates. The "@" used to separate the
+ * version is the only unencoded "@" in a valid purl — namespace "@" (e.g.
+ * npm scopes) is percent-encoded as "%40".
+ */
+function stripPurlVersion(purl: string): string {
+  const at = purl.indexOf('@');
+  return at === -1 ? purl : purl.slice(0, at);
 }
 
 /**
