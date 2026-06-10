@@ -44,14 +44,24 @@ npx @hailbytes/sbom-diff old.json new.json --format markdown
 
 ### Programmatic
 ```ts
-import { diff } from '@hailbytes/sbom-diff';
+import { readFile } from 'node:fs/promises';
+import { parse, diff, renderReport } from '@hailbytes/sbom-diff';
 
-const report = await diff('old.cdx.json', 'new.cdx.json');
+// Read and parse each SBOM (parse accepts a JSON string or object)
+const oldSBOM = parse(await readFile('old.cdx.json', 'utf-8'));
+const newSBOM = parse(await readFile('new.cdx.json', 'utf-8'));
 
-console.log(report.added);    // Component[] — newly added packages
-console.log(report.removed);  // Component[] — packages removed
-console.log(report.upgraded); // { from: Component, to: Component }[]
-console.log(report.newCVEs);  // CVE[] — vulnerabilities in new packages
+// diff is synchronous and takes two parsed SBOMs
+const report = diff(oldSBOM, newSBOM);
+
+console.log(report.added);    // Component[]      — newly added packages
+console.log(report.removed);  // Component[]      — packages removed
+console.log(report.upgraded); // VersionChange[]  — { component, from, to, isMajorBump }
+console.log(report.newCVEs);  // CVEEntry[]       — vulnerabilities introduced in the new SBOM
+console.log(report.fixedCVEs);// CVEEntry[]       — vulnerabilities no longer present
+
+// Render to text, JSON, or markdown
+console.log(renderReport(report, 'markdown'));
 ```
 
 ---
