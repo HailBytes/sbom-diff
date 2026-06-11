@@ -5,7 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- CLI no longer crashes on the default (no `--format`) invocation. When `--format` was omitted, the flag value fell back to the first positional path, producing `Error: Unsupported format: <path>`. The format now correctly defaults to `text`, and an unknown `--format` value prints a clear one-line error instead of a stack trace.
+
 ### Added
+- `src/args.ts` — extracted, unit-tested CLI argument parsing (`parseArgs`)
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
 - `src/types.ts` — Full domain model: `SBOM`, `Component`, `CVEEntry`, `ChangeReport`, `VersionChange`, `SBOMFormat`, `ReportFormat`
 - `src/parser.ts` — `parse()` / `parseCycloneDX()` / `parseSPDX()`: auto-detect and parse CycloneDX + SPDX JSON SBOMs, extracts purls, ecosystems, licenses, suppliers, CVEs

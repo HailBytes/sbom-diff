@@ -10,21 +10,19 @@ import { readFile } from 'node:fs/promises';
 import { parse } from './parser.js';
 import { diff } from './diff.js';
 import { renderReport } from './reporter.js';
+import { parseArgs } from './args.js';
 import type { ReportFormat } from './types.js';
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-
-  const positional = args.filter(a => !a.startsWith('--'));
-  if (positional.length < 2) {
-    console.error('Usage: sbom-diff <old.json> <new.json> [--format text|json|markdown]');
+  let oldPath: string;
+  let newPath: string;
+  let format: ReportFormat;
+  try {
+    ({ oldPath, newPath, format } = parseArgs(process.argv.slice(2)));
+  } catch (err) {
+    console.error((err as Error).message);
     process.exit(1);
   }
-
-  const [oldPath, newPath] = positional;
-  const formatArg = args.find(a => a.startsWith('--format='))?.split('=')[1]
-    ?? args[args.indexOf('--format') + 1];
-  const format: ReportFormat = (formatArg as ReportFormat) ?? 'text';
 
   const [oldRaw, newRaw] = await Promise.all([
     readFile(oldPath, 'utf-8'),
