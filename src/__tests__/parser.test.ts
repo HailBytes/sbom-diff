@@ -67,6 +67,42 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.vulnerabilities![0].severity).toBe('critical');
   });
 
+  it('reports the highest severity when a CVE has multiple ratings', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2024-0001',
+          affects: [{ ref: 'pkg:npm/foo@1.0.0' }],
+          // Lower-severity rating listed first, NVD critical second.
+          ratings: [
+            { source: { name: 'vendor' }, severity: 'low' },
+            { source: { name: 'nvd' }, severity: 'critical' },
+          ],
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].severity).toBe('critical');
+  });
+
+  it('ignores unknown severity strings when selecting the highest', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2024-0002',
+          affects: [{ ref: 'pkg:npm/bar@1.0.0' }],
+          ratings: [{ severity: 'unknown' }, { severity: 'medium' }],
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].severity).toBe('medium');
+  });
+
   it('parses metadata name and version', () => {
     const sbom = parse(cyclonedxFixture);
     expect(sbom.name).toBe('my-app');
