@@ -126,13 +126,35 @@ function extractCycloneDXAffects(v: Record<string, unknown>): string {
   return typeof ref.ref === 'string' ? ref.ref : 'unknown';
 }
 
+/** Severity ordering, lowest to highest, for selecting the most severe rating. */
+const SEVERITY_RANK: Record<NonNullable<CVEEntry['severity']>, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+
 function extractCycloneDXSeverity(v: Record<string, unknown>): CVEEntry['severity'] {
   const ratings = v.ratings;
   if (!Array.isArray(ratings) || ratings.length === 0) return undefined;
-  const rating = ratings[0] as Record<string, unknown>;
-  const sev = typeof rating.severity === 'string' ? rating.severity.toLowerCase() : undefined;
-  if (sev === 'critical' || sev === 'high' || sev === 'medium' || sev === 'low' || sev === 'none') return sev;
-  return undefined;
+  // A CycloneDX vulnerability may carry multiple ratings from different sources
+  // (e.g. a vendor advisory and NVD). Their order is not defined by severity, so
+  // surface the highest severity rather than whichever happens to be listed first —
+  // under-reporting a critical CVE as low would defeat the tool's purpose.
+  let highest: CVEEntry['severity'];
+  let highestRank = -1;
+  for (const raw of ratings) {
+    const rating = raw as Record<string, unknown>;
+    const sev = typeof rating.severity === 'string' ? rating.severity.toLowerCase() : undefined;
+    if (sev === 'critical' || sev === 'high' || sev === 'medium' || sev === 'low' || sev === 'none') {
+      if (SEVERITY_RANK[sev] > highestRank) {
+        highestRank = SEVERITY_RANK[sev];
+        highest = sev;
+      }
+    }
+  }
+  return highest;
 }
 
 function extractCycloneDXTimestamp(metadata: Record<string, unknown>): string | undefined {
