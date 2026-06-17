@@ -35,12 +35,16 @@ export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
     supplier: extractCycloneDXSupplier(c),
   }));
 
-  const vulnerabilities: CVEEntry[] = rawVulns.map((v: Record<string, unknown>) => ({
-    id: typeof v.id === 'string' ? v.id : 'UNKNOWN',
-    affects: extractCycloneDXAffects(v),
-    severity: extractCycloneDXSeverity(v),
-    description: typeof v.description === 'string' ? v.description : undefined,
-  }));
+  const vulnerabilities: CVEEntry[] = rawVulns.map((v: Record<string, unknown>) => {
+    const { severity, cvssScore } = extractCycloneDXRating(v);
+    return {
+      id: typeof v.id === 'string' ? v.id : 'UNKNOWN',
+      affects: extractCycloneDXAffects(v),
+      severity,
+      cvssScore,
+      description: typeof v.description === 'string' ? v.description : undefined,
+    };
+  });
 
   return {
     format: 'cyclonedx',
@@ -135,26 +139,65 @@ const SEVERITY_RANK: Record<NonNullable<CVEEntry['severity']>, number> = {
   critical: 4,
 };
 
-function extractCycloneDXSeverity(v: Record<string, unknown>): CVEEntry['severity'] {
+/**
+ * Map a numeric CVSS base score to its qualitative severity, per the CVSS v3
+ * specification's qualitative rating scale. Used when a rating carries a `score`
+ * but no (or an unrecognized) `severity` string — common in output from
+ * scanners such as Grype and Trivy.
+ */
+function cvssScoreToSeverity(score: number): NonNullable<CVEEntry['severity']> {
+  if (score <= 0) return 'none';
+  if (score < 4) return 'low';
+  if (score < 7) return 'medium';
+  if (score < 9) return 'high';
+  return 'critical';
+}
+
+/**
+ * Extract the most severe rating from a CycloneDX vulnerability.
+ *
+ * A CycloneDX vulnerability may carry multiple ratings from different sources
+ * (e.g. a vendor advisory and NVD), and their order is not defined by severity,
+ * so we surface the highest severity rather than whichever happens to be listed
+ * first — under-reporting a critical CVE as low would defeat the tool's purpose.
+ *
+ * The numeric CVSS `score` is captured (highest across ratings) and, when a
+ * rating omits a usable `severity` string, its severity is derived from the
+ * score so a score-only rating still contributes to the threshold.
+ */
+function extractCycloneDXRating(v: Record<string, unknown>): {
+  severity: CVEEntry['severity'];
+  cvssScore: number | undefined;
+} {
   const ratings = v.ratings;
-  if (!Array.isArray(ratings) || ratings.length === 0) return undefined;
-  // A CycloneDX vulnerability may carry multiple ratings from different sources
-  // (e.g. a vendor advisory and NVD). Their order is not defined by severity, so
-  // surface the highest severity rather than whichever happens to be listed first —
-  // under-reporting a critical CVE as low would defeat the tool's purpose.
-  let highest: CVEEntry['severity'];
+  if (!Array.isArray(ratings) || ratings.length === 0) {
+    return { severity: undefined, cvssScore: undefined };
+  }
+  let severity: CVEEntry['severity'];
   let highestRank = -1;
+  let cvssScore: number | undefined;
   for (const raw of ratings) {
     const rating = raw as Record<string, unknown>;
+
+    const score = typeof rating.score === 'number' ? rating.score : undefined;
+    if (score !== undefined && (cvssScore === undefined || score > cvssScore)) {
+      cvssScore = score;
+    }
+
     const sev = typeof rating.severity === 'string' ? rating.severity.toLowerCase() : undefined;
+    let normalized: NonNullable<CVEEntry['severity']> | undefined;
     if (sev === 'critical' || sev === 'high' || sev === 'medium' || sev === 'low' || sev === 'none') {
-      if (SEVERITY_RANK[sev] > highestRank) {
-        highestRank = SEVERITY_RANK[sev];
-        highest = sev;
-      }
+      normalized = sev;
+    } else if (score !== undefined) {
+      normalized = cvssScoreToSeverity(score);
+    }
+
+    if (normalized && SEVERITY_RANK[normalized] > highestRank) {
+      highestRank = SEVERITY_RANK[normalized];
+      severity = normalized;
     }
   }
-  return highest;
+  return { severity, cvssScore };
 }
 
 function extractCycloneDXTimestamp(metadata: Record<string, unknown>): string | undefined {

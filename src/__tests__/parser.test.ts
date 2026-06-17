@@ -103,6 +103,61 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.vulnerabilities![0].severity).toBe('medium');
   });
 
+  it('captures the numeric CVSS score (highest across ratings)', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2024-0003',
+          affects: [{ ref: 'pkg:npm/foo@1.0.0' }],
+          ratings: [
+            { source: { name: 'vendor' }, severity: 'high', score: 7.5 },
+            { source: { name: 'nvd' }, severity: 'critical', score: 9.8 },
+          ],
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].cvssScore).toBe(9.8);
+    expect(sbom.vulnerabilities![0].severity).toBe('critical');
+  });
+
+  it('derives severity from the CVSS score when no severity string is present', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2024-0004',
+          affects: [{ ref: 'pkg:npm/bar@1.0.0' }],
+          // A score-only rating, as emitted by some scanners.
+          ratings: [{ source: { name: 'nvd' }, score: 9.8 }],
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].cvssScore).toBe(9.8);
+    expect(sbom.vulnerabilities![0].severity).toBe('critical');
+  });
+
+  it('leaves severity and cvssScore undefined when ratings carry neither', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2024-0005',
+          affects: [{ ref: 'pkg:npm/baz@1.0.0' }],
+          ratings: [{ source: { name: 'nvd' } }],
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].cvssScore).toBeUndefined();
+    expect(sbom.vulnerabilities![0].severity).toBeUndefined();
+  });
+
   it('parses metadata name and version', () => {
     const sbom = parse(cyclonedxFixture);
     expect(sbom.name).toBe('my-app');

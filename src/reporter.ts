@@ -46,7 +46,8 @@ function renderText(r: ChangeReport): string {
   if (r.newCVEs.length > 0) {
     lines.push('\u26a0 New CVEs:');
     for (const v of r.newCVEs) {
-      lines.push(`  ! ${v.id} [${v.severity ?? 'unknown'}] \u2014 ${v.affects}`);
+      const score = v.cvssScore !== undefined ? `, CVSS ${v.cvssScore}` : '';
+      lines.push(`  ! ${v.id} [${v.severity ?? 'unknown'}${score}] \u2014 ${v.affects}`);
     }
     lines.push('');
   }
@@ -101,9 +102,12 @@ function renderMarkdown(r: ChangeReport): string {
   }
   if (r.newCVEs.length > 0) {
     lines.push('## \ud83d\udea8 New CVEs', '');
-    lines.push('| CVE ID | Severity | Affects |');
-    lines.push('|--------|----------|---------|');
-    for (const v of r.newCVEs) lines.push(`| ${v.id} | ${v.severity ?? '\u2014'} | ${v.affects} |`);
+    lines.push('| CVE ID | Severity | CVSS | Affects |');
+    lines.push('|--------|----------|------|---------|');
+    for (const v of r.newCVEs) {
+      const score = v.cvssScore !== undefined ? String(v.cvssScore) : '\u2014';
+      lines.push(`| ${v.id} | ${v.severity ?? '\u2014'} | ${score} | ${v.affects} |`);
+    }
     lines.push('');
   }
   if (r.fixedCVEs.length > 0) {
