@@ -7,17 +7,24 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Cover the engines.node range declared in package.json (>=18):
+        # the supported minimum, current LTS, and latest LTS.
+        node-version: ['18', '20', '22']
+    name: ci (Node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --include=dev
+        run: npm ci
 
       - name: Lint
         run: npm run lint

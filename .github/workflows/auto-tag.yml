@@ -23,10 +23,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --include=dev
+        run: npm ci
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Test
         run: npm test
