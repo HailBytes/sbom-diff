@@ -42,14 +42,39 @@ describe('diff', () => {
     expect(report.removed[0].name).toBe('moment');
   });
 
-  it('detects version upgrades', () => {
+  it('detects version upgrades when matched by version-qualified purl', () => {
+    // Real-world SBOMs embed the version in the purl. The same package at two
+    // versions must still match as an upgrade, not be reported as add + remove.
     const a = makesbom([{ name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20' }]);
     const b = makesbom([{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' }]);
     const report = diff(a, b);
-    // Different purl = treated as add/remove (purl includes version)
-    // With our current purl-based key: 4.17.20 -> removed, 4.17.21 -> added
-    // This is correct behavior — different purls are different packages
-    expect(report.added.length + report.removed.length + report.upgraded.length).toBeGreaterThan(0);
+    expect(report.added).toHaveLength(0);
+    expect(report.removed).toHaveLength(0);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].from).toBe('4.17.20');
+    expect(report.upgraded[0].to).toBe('4.17.21');
+    expect(report.upgraded[0].isMajorBump).toBe(false);
+  });
+
+  it('matches purls with qualifiers and subpaths regardless of version', () => {
+    const a = makesbom([
+      { name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20?arch=x64#sub' },
+    ]);
+    const b = makesbom([
+      { name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21?arch=x64#sub' },
+    ]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].to).toBe('4.17.21');
+  });
+
+  it('keeps distinct packages distinct (no false upgrades)', () => {
+    const a = makesbom([{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' }]);
+    const b = makesbom([{ name: 'express', version: '4.18.2', purl: 'pkg:npm/express@4.18.2' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(0);
+    expect(report.added).toHaveLength(1);
+    expect(report.removed).toHaveLength(1);
   });
 
   it('detects version upgrades when matched by name (no purl)', () => {
