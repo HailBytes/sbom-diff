@@ -24,11 +24,14 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
       continue;
     }
     if (aComp.version !== bComp.version && aComp.version && bComp.version) {
+      const isDowngrade = compareVersions(bComp.version, aComp.version) < 0;
       upgraded.push({
         component: bComp,
         from: aComp.version,
         to: bComp.version,
-        isMajorBump: isMajorVersionBump(aComp.version, bComp.version),
+        // A major bump only makes sense for forward moves; a rollback is never one.
+        isMajorBump: !isDowngrade && isMajorVersionBump(aComp.version, bComp.version),
+        isDowngrade,
       });
     }
     // A relicensing (e.g. MIT -> GPL-3.0) is a compliance-relevant event even when
@@ -77,6 +80,7 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
       totalRemoved: removed.length,
       totalUpgraded: upgraded.length,
       totalLicenseChanges: licenseChanges.length,
+      totalDowngraded: upgraded.filter(u => u.isDowngrade).length,
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: fixedCVEs.length,
     },
@@ -165,4 +169,39 @@ function compareCVEs(a: CVEEntry, b: CVEEntry): number {
   const rankA = a.severity ? CVE_SEVERITY_ORDER[a.severity] : 5;
   const rankB = b.severity ? CVE_SEVERITY_ORDER[b.severity] : 5;
   return rankA - rankB || a.id.localeCompare(b.id);
+}
+
+/**
+ * Compare two version strings segment-by-segment.
+ *
+ * Returns a negative number if `a < b`, a positive number if `a > b`, and 0 if
+ * they compare equal. Any leading non-numeric prefix (e.g. a `v`) is stripped,
+ * then the version is split on `.`, `-`, and `+` and compared segment-by-segment:
+ * numeric segments numerically, anything else lexicographically. A missing
+ * segment counts as `0`, so `1.2` sorts below `1.2.1`.
+ *
+ * This is intentionally a lightweight comparator (no semver dependency) — enough
+ * to tell whether a dependency moved forward or backward, which is all the diff
+ * needs to flag a rollback.
+ */
+function compareVersions(a: string, b: string): number {
+  const segments = (v: string): string[] => v.replace(/^[^0-9]*/, '').split(/[.+-]/);
+  const as = segments(a);
+  const bs = segments(b);
+  const len = Math.max(as.length, bs.length);
+
+  for (let i = 0; i < len; i++) {
+    const aSeg = as[i] ?? '0';
+    const bSeg = bs[i] ?? '0';
+    const aNum = Number(aSeg);
+    const bNum = Number(bSeg);
+    const bothNumeric = aSeg !== '' && bSeg !== '' && !isNaN(aNum) && !isNaN(bNum);
+
+    if (bothNumeric) {
+      if (aNum !== bNum) return aNum - bNum;
+    } else if (aSeg !== bSeg) {
+      return aSeg < bSeg ? -1 : 1;
+    }
+  }
+  return 0;
 }

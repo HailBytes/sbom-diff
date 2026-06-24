@@ -89,6 +89,32 @@ describe('diff', () => {
     expect(report.upgraded[0].isMajorBump).toBe(true);
   });
 
+  it('flags a version rollback as a downgrade, not an upgrade', () => {
+    const a = makesbom([{ name: 'left-pad', version: '1.3.0' }]);
+    const b = makesbom([{ name: 'left-pad', version: '1.1.0' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].isDowngrade).toBe(true);
+    expect(report.upgraded[0].isMajorBump).toBe(false);
+    expect(report.summary.totalDowngraded).toBe(1);
+  });
+
+  it('does not flag a forward upgrade as a downgrade', () => {
+    const a = makesbom([{ name: 'lodash', version: '4.17.20' }]);
+    const b = makesbom([{ name: 'lodash', version: '4.17.21' }]);
+    const report = diff(a, b);
+    expect(report.upgraded[0].isDowngrade).toBe(false);
+    expect(report.summary.totalDowngraded).toBe(0);
+  });
+
+  it('never reports a downgrade as a major bump, even across major versions', () => {
+    const a = makesbom([{ name: 'react', version: '18.2.0' }]);
+    const b = makesbom([{ name: 'react', version: '17.0.2' }]);
+    const report = diff(a, b);
+    expect(report.upgraded[0].isDowngrade).toBe(true);
+    expect(report.upgraded[0].isMajorBump).toBe(false);
+  });
+
   it('detects new CVEs', () => {
     const cve = { id: 'CVE-2021-44228', affects: 'pkg:npm/log4j@2.14.1', severity: 'critical' as const };
     const a = makesbom([]);

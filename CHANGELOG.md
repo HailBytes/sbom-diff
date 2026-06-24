@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - `src/cli.ts` — `gateWarning()`: when `--fail-on` is armed but neither compared SBOM contains vulnerability data, the CLI now prints a warning to `stderr` explaining the CVE gate has nothing to evaluate and will pass. Guards against a silent fail-open (SPDX 2.x has no vulnerability field; default CycloneDX output omits one), so a green gate is never mistaken for "no new CVEs".
 - `src/cli.ts` — `--fail-on none|any|low|medium|high|critical` flag: turns the diff into a CI/CD gate that exits with code `3` when new CVEs meet the chosen severity policy (default `none` preserves prior always-exit-`0` behaviour)
+- Downgrade detection: `diff()` now flags a version change as a rollback via the new
+  `VersionChange.isDowngrade` field and a `summary.totalDowngraded` count. The text and
+  Markdown reports render downgrades in a dedicated "Downgraded Components" section so a
+  dependency moving backwards (e.g. to a yanked or CVE-affected version) is no longer
+  silently reported as an "upgrade". A downgrade is never reported as a major bump.
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
 - `src/types.ts` — Full domain model: `SBOM`, `Component`, `CVEEntry`, `ChangeReport`, `VersionChange`, `SBOMFormat`, `ReportFormat`
 - `src/parser.ts` — `parse()` / `parseCycloneDX()` / `parseSPDX()`: auto-detect and parse CycloneDX + SPDX JSON SBOMs, extracts purls, ecosystems, licenses, suppliers, CVEs
