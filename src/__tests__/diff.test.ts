@@ -86,3 +86,54 @@ describe('diff', () => {
     expect(report.fixedCVEs).toHaveLength(1);
   });
 });
+
+describe('diff ordering', () => {
+  it('sorts added/removed components by name regardless of input order', () => {
+    const a = makesbom([]);
+    const b = makesbom([
+      { name: 'zod', version: '3.0.0' },
+      { name: 'axios', version: '1.0.0' },
+      { name: 'lodash', version: '4.0.0' },
+    ]);
+    const report = diff(a, b);
+    expect(report.added.map(c => c.name)).toEqual(['axios', 'lodash', 'zod']);
+  });
+
+  it('orders new CVEs by severity (most severe first), then by id', () => {
+    const a = makesbom([]);
+    const b = makesbom([], [
+      { id: 'CVE-2023-0002', affects: 'x', severity: 'low' },
+      { id: 'CVE-2023-0003', affects: 'y', severity: 'critical' },
+      { id: 'CVE-2023-0001', affects: 'z', severity: 'critical' },
+      { id: 'CVE-2023-0004', affects: 'w', severity: 'medium' },
+    ]);
+    const report = diff(a, b);
+    expect(report.newCVEs.map(v => v.id)).toEqual([
+      'CVE-2023-0001', // critical (id breaks the tie)
+      'CVE-2023-0003', // critical
+      'CVE-2023-0004', // medium
+      'CVE-2023-0002', // low
+    ]);
+  });
+
+  it('sorts upgrades with major bumps first', () => {
+    const a = makesbom([
+      { name: 'patch-pkg', version: '1.0.0' },
+      { name: 'major-pkg', version: '1.0.0' },
+    ]);
+    const b = makesbom([
+      { name: 'patch-pkg', version: '1.0.1' },
+      { name: 'major-pkg', version: '2.0.0' },
+    ]);
+    const report = diff(a, b);
+    expect(report.upgraded.map(u => u.component.name)).toEqual(['major-pkg', 'patch-pkg']);
+    expect(report.upgraded[0].isMajorBump).toBe(true);
+  });
+
+  it('produces identical output for the same components in different input order', () => {
+    const order1 = makesbom([{ name: 'b', version: '1' }, { name: 'a', version: '1' }]);
+    const order2 = makesbom([{ name: 'a', version: '1' }, { name: 'b', version: '1' }]);
+    const empty = makesbom([]);
+    expect(diff(empty, order1)).toEqual(diff(empty, order2));
+  });
+});
