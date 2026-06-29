@@ -19,7 +19,11 @@ export function detectFormat(obj: Record<string, unknown>): SBOMFormat {
  * Parse a CycloneDX JSON SBOM object into our canonical SBOM type.
  */
 export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
-  const rawComponents = Array.isArray(obj.components) ? obj.components : [];
+  // CycloneDX components form a tree: a component may carry its own nested
+  // `components` array (sub-assemblies / bundled dependencies). Flatten the
+  // whole tree so nested components are diffed too — otherwise an upgraded or
+  // newly tampered nested dependency would be silently invisible.
+  const rawComponents = flattenCycloneDXComponents(obj.components);
   const rawVulns = Array.isArray(obj.vulnerabilities) ? obj.vulnerabilities : [];
   const metadata = obj.metadata && typeof obj.metadata === 'object' ? obj.metadata as Record<string, unknown> : {};
   const component = metadata.component && typeof metadata.component === 'object'
@@ -97,6 +101,27 @@ export function parse(input: string | Record<string, unknown>): SBOM {
 }
 
 // --- Helpers ---
+
+/**
+ * Recursively flatten a CycloneDX `components` array, including any components
+ * nested under a parent component's own `components` array. Components are
+ * emitted depth-first (parent before its children), preserving document order.
+ *
+ * JSON input cannot contain reference cycles, so plain recursion terminates.
+ */
+function flattenCycloneDXComponents(input: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(input)) return [];
+  const flat: Record<string, unknown>[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') continue;
+    const comp = raw as Record<string, unknown>;
+    flat.push(comp);
+    if (Array.isArray(comp.components)) {
+      flat.push(...flattenCycloneDXComponents(comp.components));
+    }
+  }
+  return flat;
+}
 
 function extractEcosystemFromPurl(purl: string): string | undefined {
   const match = purl.match(/^pkg:([^/]+)\//);

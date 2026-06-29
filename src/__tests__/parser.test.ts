@@ -108,6 +108,33 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.name).toBe('my-app');
     expect(sbom.version).toBe('1.0.0');
   });
+
+  it('flattens nested sub-components (assembly hierarchy)', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [
+        {
+          name: 'app',
+          version: '1.0.0',
+          purl: 'pkg:npm/app@1.0.0',
+          components: [
+            { name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' },
+            {
+              name: 'express',
+              version: '4.18.2',
+              purl: 'pkg:npm/express@4.18.2',
+              // A second level of nesting must be picked up as well.
+              components: [{ name: 'qs', version: '6.11.0', purl: 'pkg:npm/qs@6.11.0' }],
+            },
+          ],
+        },
+      ],
+    });
+    // Depth-first, parent before children, document order preserved.
+    expect(sbom.components.map((c) => c.name)).toEqual(['app', 'lodash', 'express', 'qs']);
+    expect(sbom.components.find((c) => c.name === 'qs')?.version).toBe('6.11.0');
+  });
 });
 
 describe('parse (SPDX)', () => {
