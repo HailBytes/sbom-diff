@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `diff()` now matches components by a version-independent identity key, so a
+  version change on a component that carries a version-qualified purl (e.g.
+  `pkg:npm/lodash@4.17.20` → `pkg:npm/lodash@4.17.21`) is reported as an
+  **upgrade** instead of a spurious remove + add. Previously the raw purl —
+  which embeds the version — was used as the match key, so upgrade detection
+  (the tool's headline feature) never triggered for real-world SBOMs, which
+  almost always emit version-qualified purls. Scoped npm purls (`%40`-encoded)
+  and purls with `?qualifiers`/`#subpath` are handled correctly.
+
 ### Added
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
 - `src/types.ts` — Full domain model: `SBOM`, `Component`, `CVEEntry`, `ChangeReport`, `VersionChange`, `SBOMFormat`, `ReportFormat`

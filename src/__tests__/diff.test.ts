@@ -42,14 +42,34 @@ describe('diff', () => {
     expect(report.removed[0].name).toBe('moment');
   });
 
-  it('detects version upgrades', () => {
+  it('detects version upgrades when matched by version-qualified purl', () => {
+    // Real SBOMs emit version-qualified purls. The identity key must ignore the
+    // "@version" segment so this is reported as an upgrade, not remove + add.
     const a = makesbom([{ name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20' }]);
     const b = makesbom([{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' }]);
     const report = diff(a, b);
-    // Different purl = treated as add/remove (purl includes version)
-    // With our current purl-based key: 4.17.20 -> removed, 4.17.21 -> added
-    // This is correct behavior — different purls are different packages
-    expect(report.added.length + report.removed.length + report.upgraded.length).toBeGreaterThan(0);
+    expect(report.added).toHaveLength(0);
+    expect(report.removed).toHaveLength(0);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].from).toBe('4.17.20');
+    expect(report.upgraded[0].to).toBe('4.17.21');
+  });
+
+  it('matches scoped npm purls across versions (leading @ is percent-encoded)', () => {
+    const a = makesbom([{ name: '@angular/core', version: '15.0.0', purl: 'pkg:npm/%40angular/core@15.0.0' }]);
+    const b = makesbom([{ name: '@angular/core', version: '16.1.0', purl: 'pkg:npm/%40angular/core@16.1.0' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].isMajorBump).toBe(true);
+  });
+
+  it('matches purls with qualifiers across versions', () => {
+    const a = makesbom([{ name: 'openssl', version: '1.1.1', purl: 'pkg:deb/debian/openssl@1.1.1?arch=amd64' }]);
+    const b = makesbom([{ name: 'openssl', version: '3.0.2', purl: 'pkg:deb/debian/openssl@3.0.2?arch=amd64' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.added).toHaveLength(0);
+    expect(report.removed).toHaveLength(0);
   });
 
   it('detects version upgrades when matched by name (no purl)', () => {
