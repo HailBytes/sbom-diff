@@ -191,6 +191,30 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.components.map((c) => c.name)).toEqual(['app', 'lodash', 'express', 'qs']);
     expect(sbom.components.find((c) => c.name === 'qs')?.version).toBe('6.11.0');
   });
+
+  it('extracts a license from a license id or name object', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [
+        { name: 'a', version: '1.0.0', licenses: [{ license: { id: 'MIT' } }] },
+        { name: 'b', version: '1.0.0', licenses: [{ license: { name: 'Custom EULA' } }] },
+      ],
+    });
+    expect(sbom.components[0].license).toBe('MIT');
+    expect(sbom.components[1].license).toBe('Custom EULA');
+  });
+
+  it('extracts a license from an SPDX license expression', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [
+        { name: 'dual', version: '1.0.0', licenses: [{ expression: 'MIT OR Apache-2.0' }] },
+      ],
+    });
+    expect(sbom.components[0].license).toBe('MIT OR Apache-2.0');
+  });
 });
 
 describe('parse (SPDX)', () => {
@@ -229,6 +253,28 @@ describe('parse (SPDX)', () => {
     });
     const report = diff(old, next);
     expect(report.upgraded).toHaveLength(0);
+  });
+
+  it('falls back to licenseDeclared when licenseConcluded is NOASSERTION', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'app',
+      packages: [
+        { name: 'foo', versionInfo: '1.0.0', licenseConcluded: 'NOASSERTION', licenseDeclared: 'BSD-3-Clause' },
+      ],
+    });
+    expect(sbom.components[0].license).toBe('BSD-3-Clause');
+  });
+
+  it('leaves license undefined when both concluded and declared are NOASSERTION', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'app',
+      packages: [
+        { name: 'foo', versionInfo: '1.0.0', licenseConcluded: 'NOASSERTION', licenseDeclared: 'NOASSERTION' },
+      ],
+    });
+    expect(sbom.components[0].license).toBeUndefined();
   });
 });
 
