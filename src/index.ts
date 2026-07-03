@@ -24,6 +24,7 @@ export type {
   CVEEntry,
   ChangeReport,
   VersionChange,
+  LicenseChange,
   SBOMFormat,
   ReportFormat,
 } from './types.js';

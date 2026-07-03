@@ -6,9 +6,10 @@ const sampleReport: ChangeReport = {
   added: [{ name: 'express', version: '4.18.2', ecosystem: 'npm' }],
   removed: [{ name: 'moment', version: '2.29.4' }],
   upgraded: [{ component: { name: 'lodash', version: '4.17.21' }, from: '4.17.20', to: '4.17.21', isMajorBump: false }],
+  licenseChanges: [{ component: { name: 'chalk', version: '5.3.0' }, from: 'MIT', to: 'GPL-3.0' }],
   newCVEs: [{ id: 'CVE-2023-1234', affects: 'pkg:npm/foo@1.0.0', severity: 'high' }],
   fixedCVEs: [{ id: 'CVE-2022-9999', affects: 'pkg:npm/bar@0.9.0' }],
-  summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalNewCVEs: 1, totalFixedCVEs: 1 },
+  summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalLicenseChanges: 1, totalNewCVEs: 1, totalFixedCVEs: 1 },
 };
 
 describe('renderReport', () => {
@@ -19,6 +20,8 @@ describe('renderReport', () => {
     expect(out).toContain('moment');
     expect(out).toContain('CVE-2023-1234');
     expect(out).toContain('CVE-2022-9999');
+    expect(out).toContain('License Changes');
+    expect(out).toContain('chalk: MIT');
   });
 
   it('renders JSON format', () => {
@@ -32,6 +35,8 @@ describe('renderReport', () => {
     expect(out).toContain('# SBOM Diff Report');
     expect(out).toContain('| express |');
     expect(out).toContain('CVE-2023-1234');
+    expect(out).toContain('## ⚖️ License Changes');
+    expect(out).toContain('| chalk | MIT | GPL-3.0 |');
   });
 
   it('throws on unsupported format', () => {

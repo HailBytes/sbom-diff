@@ -85,4 +85,37 @@ describe('diff', () => {
     const report = diff(a, b);
     expect(report.fixedCVEs).toHaveLength(1);
   });
+
+  it('detects a license change on a component present in both SBOMs', () => {
+    const a = makesbom([{ name: 'chalk', version: '5.3.0', license: 'MIT' }]);
+    const b = makesbom([{ name: 'chalk', version: '5.3.0', license: 'GPL-3.0' }]);
+    const report = diff(a, b);
+    expect(report.licenseChanges).toHaveLength(1);
+    expect(report.licenseChanges[0].component.name).toBe('chalk');
+    expect(report.licenseChanges[0].from).toBe('MIT');
+    expect(report.licenseChanges[0].to).toBe('GPL-3.0');
+    expect(report.summary.totalLicenseChanges).toBe(1);
+  });
+
+  it('reports a license change even when the version is unchanged', () => {
+    const a = makesbom([{ name: 'left-pad', version: '1.3.0', purl: 'pkg:npm/left-pad@1.3.0', license: 'WTFPL' }]);
+    const b = makesbom([{ name: 'left-pad', version: '1.3.0', purl: 'pkg:npm/left-pad@1.3.0', license: 'MIT' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(0);
+    expect(report.licenseChanges).toHaveLength(1);
+    expect(report.licenseChanges[0].to).toBe('MIT');
+  });
+
+  it('does not report a change when license metadata is only added or dropped', () => {
+    const a = makesbom([{ name: 'lodash', version: '4.17.21' }]);
+    const b = makesbom([{ name: 'lodash', version: '4.17.21', license: 'MIT' }]);
+    expect(diff(a, b).licenseChanges).toHaveLength(0);
+    expect(diff(b, a).licenseChanges).toHaveLength(0);
+  });
+
+  it('reports no license change for identical licenses', () => {
+    const a = makesbom([{ name: 'react', version: '18.2.0', license: 'MIT' }]);
+    const b = makesbom([{ name: 'react', version: '18.2.0', license: 'MIT' }]);
+    expect(diff(a, b).licenseChanges).toHaveLength(0);
+  });
 });

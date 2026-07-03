@@ -1,4 +1,4 @@
-import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange } from './types.js';
+import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange } from './types.js';
 
 /**
  * Compare two parsed SBOMs and produce a ChangeReport.
@@ -14,19 +14,29 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
   const added: Component[] = [];
   const removed: Component[] = [];
   const upgraded: VersionChange[] = [];
+  const licenseChanges: LicenseChange[] = [];
 
-  // Find added and upgraded
+  // Find added, upgraded, and relicensed
   for (const [key, bComp] of bMap) {
     const aComp = aMap.get(key);
     if (!aComp) {
       added.push(bComp);
-    } else if (aComp.version !== bComp.version && aComp.version && bComp.version) {
+      continue;
+    }
+    if (aComp.version !== bComp.version && aComp.version && bComp.version) {
       upgraded.push({
         component: bComp,
         from: aComp.version,
         to: bComp.version,
         isMajorBump: isMajorVersionBump(aComp.version, bComp.version),
       });
+    }
+    // A relicensing (e.g. MIT -> GPL-3.0) is a compliance-relevant event even when
+    // the version is unchanged. Only surface it when both SBOMs declare a license
+    // and they differ — treating newly-added or dropped license metadata as a
+    // "change" would produce noise rather than a real relicense signal.
+    if (aComp.license && bComp.license && aComp.license !== bComp.license) {
+      licenseChanges.push({ component: bComp, from: aComp.license, to: bComp.license });
     }
   }
 
@@ -48,12 +58,14 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
     added,
     removed,
     upgraded,
+    licenseChanges,
     newCVEs,
     fixedCVEs,
     summary: {
       totalAdded: added.length,
       totalRemoved: removed.length,
       totalUpgraded: upgraded.length,
+      totalLicenseChanges: licenseChanges.length,
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: fixedCVEs.length,
     },
