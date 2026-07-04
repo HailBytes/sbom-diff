@@ -1,0 +1,34 @@
+# Dependabot keeps this project's own supply chain patched.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # npm dependencies (devDependencies + any runtime deps)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    # Collapse routine minor/patch bumps into a single PR to cut review noise;
+    # majors still arrive as individual PRs so breaking changes stay visible.
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions used by the CI, auto-tag, and publish workflows.
+  # These are currently pinned to floating major tags (e.g. actions/checkout@v4);
+  # Dependabot surfaces new releases so they don't silently drift or go stale.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions-all:
+        patterns:
+          - "*"
