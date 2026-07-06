@@ -1,5 +1,14 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The published tarball ships `dist` only (see package.json "files"), not
+    // `src`. Emitting source maps / declaration maps here would ship dangling
+    // pointers to `../src/*.ts` that don't exist in the package, breaking
+    // debugger source mapping and IDE "Go to Definition". Keep `declaration`
+    // (the .d.ts types are part of the public API) but drop the maps.
+    "sourceMap": false,
+    "declarationMap": false
+  },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/__tests__", "vitest.config.ts"]
 }
