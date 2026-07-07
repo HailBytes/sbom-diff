@@ -63,11 +63,37 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
   for (const comp of components) {
-    // Prefer purl as key, fall back to name
-    const key = comp.purl ?? comp.name;
-    map.set(key, comp);
+    map.set(componentKey(comp), comp);
   }
   return map;
+}
+
+/**
+ * Build a version-independent identity key for a component so the same
+ * package can be matched across two SBOMs even when its version changed.
+ *
+ * Real-world CycloneDX/SPDX generators almost always embed the version in the
+ * purl (e.g. "pkg:npm/lodash@4.17.21"), so keying on the raw purl would make an
+ * upgrade look like a removal plus an addition and hide it from the "upgraded"
+ * report entirely. We therefore strip the version — and any qualifiers/subpath,
+ * which can also vary between builds — leaving the stable "pkg:type/namespace/name"
+ * identity. Components without a purl fall back to their name.
+ */
+function componentKey(comp: Component): string {
+  return comp.purl ? purlIdentity(comp.purl) : comp.name;
+}
+
+/**
+ * Strip the version (`@...`), qualifiers (`?...`), and subpath (`#...`) from a
+ * purl, returning the `pkg:type/namespace/name` portion. In a purl any literal
+ * `@` in the name or namespace is percent-encoded (e.g. the npm scope `@angular`
+ * becomes `%40angular`), so the first unescaped `@` reliably marks the version.
+ */
+function purlIdentity(purl: string): string {
+  const withoutSubpath = purl.split('#', 1)[0];
+  const withoutQualifiers = withoutSubpath.split('?', 1)[0];
+  const atIndex = withoutQualifiers.indexOf('@');
+  return atIndex === -1 ? withoutQualifiers : withoutQualifiers.slice(0, atIndex);
 }
 
 /**
