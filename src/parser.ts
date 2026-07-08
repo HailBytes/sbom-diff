@@ -33,7 +33,9 @@ export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
   const components: Component[] = rawComponents.map((c: Record<string, unknown>) => ({
     purl: typeof c.purl === 'string' ? c.purl : undefined,
     name: typeof c.name === 'string' ? c.name : 'unknown',
-    version: typeof c.version === 'string' ? c.version : undefined,
+    version: typeof c.version === 'string'
+      ? c.version
+      : extractVersionFromPurl(typeof c.purl === 'string' ? c.purl : ''),
     license: extractCycloneDXLicense(c),
     ecosystem: extractEcosystemFromPurl(typeof c.purl === 'string' ? c.purl : ''),
     supplier: extractCycloneDXSupplier(c),
@@ -77,14 +79,17 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
       const id = typeof pkg.SPDXID === 'string' ? pkg.SPDXID : undefined;
       return !(id !== undefined && rootIds.has(id));
     })
-    .map((pkg: Record<string, unknown>) => ({
-    purl: extractSPDXPurl(pkg),
-    name: typeof pkg.name === 'string' ? pkg.name : 'unknown',
-    version: normalizeSPDXValue(pkg.versionInfo),
-    license: extractSPDXLicense(pkg),
-    ecosystem: extractEcosystemFromPurl(extractSPDXPurl(pkg) ?? ''),
-    supplier: normalizeSPDXValue(pkg.supplier),
-  }));
+    .map((pkg: Record<string, unknown>) => {
+      const purl = extractSPDXPurl(pkg);
+      return {
+        purl,
+        name: typeof pkg.name === 'string' ? pkg.name : 'unknown',
+        version: normalizeSPDXValue(pkg.versionInfo) || extractVersionFromPurl(purl ?? ''),
+        license: extractSPDXLicense(pkg),
+        ecosystem: extractEcosystemFromPurl(purl ?? ''),
+        supplier: normalizeSPDXValue(pkg.supplier),
+      };
+    });
 
   return {
     format: 'spdx',
@@ -144,6 +149,32 @@ function flattenCycloneDXComponents(input: unknown): Record<string, unknown>[] {
 function extractEcosystemFromPurl(purl: string): string | undefined {
   const match = purl.match(/^pkg:([^/]+)\//);
   return match ? match[1] : undefined;
+}
+
+/**
+ * Extract the version from a Package URL (purl).
+ *
+ * A purl encodes the version after an unescaped `@`, before any `?qualifiers`
+ * or `#subpath` (e.g. `pkg:npm/lodash@4.17.21`, `pkg:npm/%40angular/core@17.0.0`).
+ * Per the CycloneDX/SPDX specs a component's dedicated version field is optional,
+ * so when it is absent the purl is the authoritative source — otherwise reports
+ * render `name@unknown` and JSON consumers get `version: undefined` for a package
+ * whose version is right there in the purl.
+ *
+ * Namespace/name segments must percent-encode any literal `@`, so the last `@`
+ * is the version separator. Returns undefined when the purl carries no version.
+ */
+function extractVersionFromPurl(purl: string): string | undefined {
+  if (!purl.startsWith('pkg:')) return undefined;
+  const at = purl.lastIndexOf('@');
+  if (at === -1) return undefined;
+  const raw = purl.slice(at + 1).split(/[?#]/)[0];
+  if (!raw) return undefined;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 function extractCycloneDXLicense(c: Record<string, unknown>): string | undefined {
