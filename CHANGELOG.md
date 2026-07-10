@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `parse()` now strips a leading UTF-8 byte order mark (BOM) before `JSON.parse`, so BOM-prefixed SBOMs (common from Windows tooling and some generators) no longer crash with a cryptic "Unexpected token" error
+
 ### Added
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
 - `src/types.ts` — Full domain model: `SBOM`, `Component`, `CVEEntry`, `ChangeReport`, `VersionChange`, `SBOMFormat`, `ReportFormat`

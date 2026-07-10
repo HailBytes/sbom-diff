@@ -126,4 +126,21 @@ describe('parse (JSON string input)', () => {
     const sbom = parse(JSON.stringify(cyclonedxFixture));
     expect(sbom.components).toHaveLength(2);
   });
+
+  it('strips a leading UTF-8 BOM before parsing', () => {
+    // Some SBOM generators / Windows tooling emit BOM-prefixed JSON, which is
+    // valid on disk but makes a naive JSON.parse throw "Unexpected token".
+    const withBom = '﻿' + JSON.stringify(cyclonedxFixture);
+    const sbom = parse(withBom);
+    expect(sbom.format).toBe('cyclonedx');
+    expect(sbom.components).toHaveLength(2);
+  });
+
+  it('only strips a BOM at the very start, not elsewhere', () => {
+    // A BOM appearing inside a string value must be preserved verbatim.
+    const sbom = parse(
+      JSON.stringify({ bomFormat: 'CycloneDX', components: [{ name: 'a﻿b' }] }),
+    );
+    expect(sbom.components[0].name).toBe('a﻿b');
+  });
 });
