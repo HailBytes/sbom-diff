@@ -63,11 +63,37 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
   for (const comp of components) {
-    // Prefer purl as key, fall back to name
-    const key = comp.purl ?? comp.name;
-    map.set(key, comp);
+    map.set(componentKey(comp), comp);
   }
   return map;
+}
+
+/**
+ * A version-independent identity for a component.
+ *
+ * Real-world SBOMs (syft, cdxgen, trivy, …) embed the version in the purl
+ * (e.g. "pkg:npm/lodash@4.17.21"), so keying on the raw purl would give an
+ * upgraded package two different keys — surfacing it as a spurious
+ * remove + add pair instead of an upgrade. Strip the version so the same
+ * package matches across SBOMs and real upgrades are detected.
+ */
+function componentKey(comp: Component): string {
+  if (comp.purl) return stripPurlVersion(comp.purl);
+  return comp.name;
+}
+
+/**
+ * Remove the `@version` segment from a purl, leaving the coordinate.
+ *
+ * purl layout: `pkg:type/namespace/name@version?qualifiers#subpath`. The
+ * version is delimited by the last unescaped `@` (scoped npm namespaces
+ * encode their leading `@` as `%40`, so it never collides), bounded by any
+ * `?qualifiers` / `#subpath` suffix.
+ */
+function stripPurlVersion(purl: string): string {
+  const core = purl.split('?')[0].split('#')[0];
+  const at = core.lastIndexOf('@');
+  return at > 0 ? core.slice(0, at) : core;
 }
 
 /**
