@@ -200,3 +200,27 @@ describe('loadSbom', () => {
     }
   });
 });
+
+describe('parseArgs help/version', () => {
+  it('sets help for --help and -h', () => {
+    expect(parseArgs(['--help']).help).toBe(true);
+    expect(parseArgs(['-h']).help).toBe(true);
+  });
+
+  it('sets version for --version and -v', () => {
+    expect(parseArgs(['--version']).version).toBe(true);
+    expect(parseArgs(['-v']).version).toBe(true);
+  });
+
+  it('short-circuits --help even alongside otherwise-invalid args', () => {
+    // Would normally throw on the bad --format value; --help wins instead.
+    expect(() => parseArgs(['--help', '--format=yaml'])).not.toThrow();
+    expect(parseArgs(['--help', '--format=yaml']).help).toBe(true);
+  });
+
+  it('does not treat normal invocations as help or version', () => {
+    const parsed = parseArgs(['old.json', 'new.json']);
+    expect(parsed.help).toBe(false);
+    expect(parsed.version).toBe(false);
+  });
+});

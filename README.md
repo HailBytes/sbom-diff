@@ -43,6 +43,10 @@ npx @hailbytes/sbom-diff old.json new.json --format markdown
 
 # Fail the build (exit code 3) if any new high or critical CVE appears
 npx @hailbytes/sbom-diff old.json new.json --fail-on high
+
+# Show help or print the installed version
+npx @hailbytes/sbom-diff --help
+npx @hailbytes/sbom-diff --version
 ```
 
 ### CI/CD gate

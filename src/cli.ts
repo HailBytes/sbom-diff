@@ -7,6 +7,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parse } from './parser.js';
 import { diff } from './diff.js';
@@ -38,10 +39,32 @@ const SEVERITY_RANK: Record<NonNullable<CVEEntry['severity']>, number> = {
   critical: 4,
 };
 
+const HELP = `sbom-diff — diff two CycloneDX or SPDX SBOMs into a change report.
+
+${USAGE}
+
+Arguments:
+  <old.json>   Baseline SBOM (the "before" document)
+  <new.json>   Updated SBOM (the "after" document)
+
+Options:
+  --format <fmt>   Output format: text (default), json, or markdown
+  -h, --help       Show this help and exit
+  -v, --version    Print the installed version and exit
+
+Examples:
+  sbom-diff old.json new.json
+  sbom-diff old.json new.json --format json
+  sbom-diff old.json new.json --format markdown`;
+
 export interface ParsedArgs {
   positional: string[];
   format: ReportFormat;
   failOn: FailOn;
+  /** true when -h/--help was requested */
+  help: boolean;
+  /** true when -v/--version was requested */
+  version: boolean;
 }
 
 /**
@@ -52,9 +75,19 @@ export interface ParsedArgs {
  * and flags appearing in any position relative to the positional file paths.
  * Defaults to `text` format and a `none` gate policy.
  *
- * @throws if an unknown flag or unsupported flag value is supplied.
+ * `-h`/`--help` and `-v`/`--version` short-circuit parsing so they always
+ * work — even alongside otherwise-invalid arguments — and never throw.
+ *
+ * @throws if an unknown flag or unsupported format value is supplied.
  */
 export function parseArgs(argv: string[]): ParsedArgs {
+  if (argv.some(a => a === '-h' || a === '--help')) {
+    return { positional: [], format: 'text', failOn: 'none', help: true, version: false };
+  }
+  if (argv.some(a => a === '-v' || a === '-V' || a === '--version')) {
+    return { positional: [], format: 'text', failOn: 'none', help: false, version: true };
+  }
+
   const positional: string[] = [];
   let format: ReportFormat = 'text';
   let failOn: FailOn = 'none';
@@ -76,7 +109,21 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { positional, format, failOn };
+  return { positional, format, failOn, help: false, version: false };
+}
+
+/**
+ * Read the package version from the shipped package.json, resolved relative to
+ * this module so it works whether invoked from `dist/` or via `npx`.
+ */
+export function resolveVersion(): string {
+  try {
+    const pkgUrl = new URL('../package.json', import.meta.url);
+    const pkg = JSON.parse(readFileSync(pkgUrl, 'utf-8')) as { version?: string };
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
 }
 
 function assertFormat(value: string | undefined): ReportFormat {
@@ -169,7 +216,17 @@ export async function loadSbom(path: string, label: string): Promise<SBOM> {
 }
 
 async function main(): Promise<void> {
-  const { positional, format, failOn } = parseArgs(process.argv.slice(2));
+  const { positional, format, failOn, help, version } = parseArgs(process.argv.slice(2));
+
+  if (help) {
+    console.log(HELP);
+    return;
+  }
+
+  if (version) {
+    console.log(resolveVersion());
+    return;
+  }
 
   if (positional.length < 2) {
     console.error(USAGE);
