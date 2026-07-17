@@ -63,11 +63,35 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
   for (const comp of components) {
-    // Prefer purl as key, fall back to name
-    const key = comp.purl ?? comp.name;
-    map.set(key, comp);
+    map.set(componentKey(comp), comp);
   }
   return map;
+}
+
+/**
+ * Derive a stable, version-independent identity for a component.
+ *
+ * A purl embeds the version (e.g. "pkg:npm/lodash@4.17.21"), so keying the diff
+ * on the raw purl would make every upgrade look like an unrelated remove + add —
+ * defeating the tool's headline "upgraded dependencies" detection. Strip the
+ * version so the same package at two versions maps to one identity. Falls back to
+ * the name (also version-stripped by construction) when no purl is present.
+ */
+function componentKey(comp: Component): string {
+  return comp.purl ? stripPurlVersion(comp.purl) : comp.name;
+}
+
+/**
+ * Remove the version segment from a package URL.
+ *
+ * In a purl the version follows the first *literal* "@"; any "@" inside the
+ * namespace (e.g. an npm scope "@angular") is percent-encoded as "%40", so the
+ * first literal "@" always delimits the version. Qualifiers ("?...") and the
+ * subpath ("#...") are preserved so components that differ only by those are
+ * still distinguished.
+ */
+function stripPurlVersion(purl: string): string {
+  return purl.replace(/@[^?#]*/, '');
 }
 
 /**
