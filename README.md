@@ -40,6 +40,27 @@ npx @hailbytes/sbom-diff old.json new.json --format json
 
 # Output as Markdown (great for PR comments)
 npx @hailbytes/sbom-diff old.json new.json --format markdown
+
+# Fail the build (exit code 3) if any new high or critical CVE appears
+npx @hailbytes/sbom-diff old.json new.json --fail-on high
+```
+
+### CI/CD gate
+
+Use `--fail-on` to turn the diff into a pass/fail gate. When the policy is
+triggered, the report is still printed and the process exits with code `3`, so
+your pipeline stops on risky changes:
+
+| `--fail-on` | Fails when… |
+|-------------|-------------|
+| `none` *(default)* | never — always exits `0` |
+| `any` | any new CVE is introduced |
+| `low` / `medium` / `high` / `critical` | a new CVE appears at or above that severity |
+
+```yaml
+# GitHub Actions example
+- name: Gate on new high-severity CVEs
+  run: npx @hailbytes/sbom-diff sbom.base.json sbom.pr.json --fail-on high
 ```
 
 ### Programmatic

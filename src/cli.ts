@@ -3,7 +3,7 @@
  * @hailbytes/sbom-diff CLI
  *
  * Usage:
- *   npx @hailbytes/sbom-diff <old.json> <new.json> [--format text|json|markdown]
+ *   npx @hailbytes/sbom-diff <old.json> <new.json> [--format text|json|markdown] [--fail-on <level>]
  */
 
 import { readFile } from 'node:fs/promises';
@@ -11,27 +11,53 @@ import { pathToFileURL } from 'node:url';
 import { parse } from './parser.js';
 import { diff } from './diff.js';
 import { renderReport } from './reporter.js';
-import type { ReportFormat } from './types.js';
+import type { ChangeReport, CVEEntry, ReportFormat } from './types.js';
 
-const USAGE = 'Usage: sbom-diff <old.json> <new.json> [--format text|json|markdown]';
+const USAGE =
+  'Usage: sbom-diff <old.json> <new.json> [--format text|json|markdown] [--fail-on none|any|low|medium|high|critical]';
 const VALID_FORMATS: ReportFormat[] = ['text', 'json', 'markdown'];
+
+/**
+ * CI/CD gate policy. Determines whether the CLI exits non-zero.
+ * - `none`: never fail (default; preserves prior behaviour)
+ * - `any`: fail if any new CVE is introduced, regardless of severity
+ * - a severity: fail if any new CVE meets or exceeds that severity
+ */
+export type FailOn = 'none' | 'any' | 'low' | 'medium' | 'high' | 'critical';
+const VALID_FAIL_ON: FailOn[] = ['none', 'any', 'low', 'medium', 'high', 'critical'];
+
+/** Exit code used when a `--fail-on` gate is triggered (distinct from usage/runtime errors). */
+export const GATE_FAILURE_EXIT_CODE = 3;
+
+/** Severity ordering, lowest to highest, for threshold comparisons. */
+const SEVERITY_RANK: Record<NonNullable<CVEEntry['severity']>, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
 
 export interface ParsedArgs {
   positional: string[];
   format: ReportFormat;
+  failOn: FailOn;
 }
 
 /**
- * Parse CLI arguments into positional paths and the requested output format.
+ * Parse CLI arguments into positional paths, the requested output format, and
+ * the CI/CD gate policy.
  *
- * Supports `--format text`, `--format=text`, and flags appearing in any
- * position relative to the positional file paths. Defaults to `text`.
+ * Supports `--format text`, `--format=text`, `--fail-on high`, `--fail-on=high`,
+ * and flags appearing in any position relative to the positional file paths.
+ * Defaults to `text` format and a `none` gate policy.
  *
- * @throws if an unknown flag or unsupported format value is supplied.
+ * @throws if an unknown flag or unsupported flag value is supplied.
  */
 export function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = [];
   let format: ReportFormat = 'text';
+  let failOn: FailOn = 'none';
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -39,6 +65,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
       format = assertFormat(argv[++i]);
     } else if (arg.startsWith('--format=')) {
       format = assertFormat(arg.slice('--format='.length));
+    } else if (arg === '--fail-on') {
+      failOn = assertFailOn(argv[++i]);
+    } else if (arg.startsWith('--fail-on=')) {
+      failOn = assertFailOn(arg.slice('--fail-on='.length));
     } else if (arg.startsWith('-')) {
       throw new Error(`Unknown option: ${arg}\n${USAGE}`);
     } else {
@@ -46,7 +76,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { positional, format };
+  return { positional, format, failOn };
 }
 
 function assertFormat(value: string | undefined): ReportFormat {
@@ -58,8 +88,31 @@ function assertFormat(value: string | undefined): ReportFormat {
   );
 }
 
+function assertFailOn(value: string | undefined): FailOn {
+  if (value !== undefined && (VALID_FAIL_ON as string[]).includes(value)) {
+    return value as FailOn;
+  }
+  throw new Error(
+    `Invalid --fail-on value: ${value ?? '(none)'}. Expected one of: ${VALID_FAIL_ON.join(', ')}`,
+  );
+}
+
+/**
+ * Evaluate the CI/CD gate against a diff. Returns the new CVEs that trip the
+ * gate (empty when the gate passes). A new CVE with an unknown severity only
+ * trips the `any` gate, since it cannot be compared against a severity threshold.
+ */
+export function gateFailures(report: ChangeReport, failOn: FailOn): CVEEntry[] {
+  if (failOn === 'none') return [];
+  if (failOn === 'any') return report.newCVEs;
+  const threshold = SEVERITY_RANK[failOn];
+  return report.newCVEs.filter(
+    v => v.severity !== undefined && SEVERITY_RANK[v.severity] >= threshold,
+  );
+}
+
 async function main(): Promise<void> {
-  const { positional, format } = parseArgs(process.argv.slice(2));
+  const { positional, format, failOn } = parseArgs(process.argv.slice(2));
 
   if (positional.length < 2) {
     console.error(USAGE);
@@ -78,6 +131,15 @@ async function main(): Promise<void> {
   const report = diff(oldSBOM, newSBOM);
 
   console.log(renderReport(report, format));
+
+  const failures = gateFailures(report, failOn);
+  if (failures.length > 0) {
+    const label = failOn === 'any' ? 'new CVE(s)' : `new CVE(s) at or above "${failOn}" severity`;
+    console.error(
+      `\nGate failed: ${failures.length} ${label}: ${failures.map(v => v.id).join(', ')}`,
+    );
+    process.exit(GATE_FAILURE_EXIT_CODE);
+  }
 }
 
 // Only run when invoked directly (not when imported by tests).

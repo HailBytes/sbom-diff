@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `src/cli.ts` — `--fail-on none|any|low|medium|high|critical` flag: turns the diff into a CI/CD gate that exits with code `3` when new CVEs meet the chosen severity policy (default `none` preserves prior always-exit-`0` behaviour)
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
 - `src/types.ts` — Full domain model: `SBOM`, `Component`, `CVEEntry`, `ChangeReport`, `VersionChange`, `SBOMFormat`, `ReportFormat`
 - `src/parser.ts` — `parse()` / `parseCycloneDX()` / `parseSPDX()`: auto-detect and parse CycloneDX + SPDX JSON SBOMs, extracts purls, ecosystems, licenses, suppliers, CVEs
