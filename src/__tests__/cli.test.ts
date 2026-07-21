@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseArgs, loadSbom, gateFailures, gateWarning } from '../cli.js';
+import { parseArgs, loadSbom, gateFailures, gateWarning, isSuppressed } from '../cli.js';
 import type { ChangeReport, CVEEntry, SBOM } from '../types.js';
 
 describe('parseArgs', () => {
@@ -65,10 +65,15 @@ describe('parseArgs', () => {
 });
 
 describe('gateFailures', () => {
-  const cve = (id: string, severity?: CVEEntry['severity']): CVEEntry => ({
+  const cve = (
+    id: string,
+    severity?: CVEEntry['severity'],
+    analysisState?: string,
+  ): CVEEntry => ({
     id,
     affects: 'pkg:npm/example',
     severity,
+    analysisState,
   });
 
   const reportWith = (newCVEs: CVEEntry[]): ChangeReport => ({
@@ -124,6 +129,45 @@ describe('gateFailures', () => {
     expect(gateFailures(report, 'critical')).toEqual([]);
     // ...but "any" still catches them.
     expect(gateFailures(report, 'any').map(v => v.id)).toEqual(['CVE-unknown']);
+  });
+
+  it('ignores VEX-suppressed CVEs (not_affected / false_positive) under every policy', () => {
+    const report = reportWith([
+      cve('CVE-not-affected', 'critical', 'not_affected'),
+      cve('CVE-false-pos', 'critical', 'false_positive'),
+    ]);
+    expect(gateFailures(report, 'any')).toEqual([]);
+    expect(gateFailures(report, 'critical')).toEqual([]);
+  });
+
+  it('still fails on actionable CVEs alongside suppressed ones', () => {
+    const report = reportWith([
+      cve('CVE-suppressed', 'critical', 'not_affected'),
+      cve('CVE-real', 'high'),
+      cve('CVE-triage', 'critical', 'in_triage'),
+    ]);
+    // The suppressed one drops out; the real and still-under-triage ones remain.
+    expect(gateFailures(report, 'high').map(v => v.id)).toEqual(['CVE-real', 'CVE-triage']);
+  });
+});
+
+describe('isSuppressed', () => {
+  const withState = (analysisState?: string): CVEEntry => ({
+    id: 'CVE-x',
+    affects: 'pkg:npm/example',
+    analysisState,
+  });
+
+  it('is true only for not_affected and false_positive', () => {
+    expect(isSuppressed(withState('not_affected'))).toBe(true);
+    expect(isSuppressed(withState('false_positive'))).toBe(true);
+  });
+
+  it('is false for active, in-progress, or absent states', () => {
+    expect(isSuppressed(withState('exploitable'))).toBe(false);
+    expect(isSuppressed(withState('in_triage'))).toBe(false);
+    expect(isSuppressed(withState('resolved'))).toBe(false);
+    expect(isSuppressed(withState(undefined))).toBe(false);
   });
 });
 

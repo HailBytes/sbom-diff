@@ -1,4 +1,13 @@
-import type { ChangeReport, ReportFormat } from './types.js';
+import type { ChangeReport, CVEEntry, ReportFormat } from './types.js';
+
+/**
+ * A short parenthetical noting a vulnerability's VEX analysis state, so a
+ * suppressed CVE that still appears in the report explains why a CI gate did
+ * not fail on it. Empty when the entry carries no analysis state.
+ */
+function vexNote(v: CVEEntry): string {
+  return v.analysisState ? ` (VEX: ${v.analysisState})` : '';
+}
 
 /**
  * Render a ChangeReport to a human-readable string.
@@ -65,7 +74,7 @@ function renderText(r: ChangeReport): string {
     lines.push('\u26a0 New CVEs:');
     for (const v of r.newCVEs) {
       const score = v.cvssScore !== undefined ? `, CVSS ${v.cvssScore}` : '';
-      lines.push(`  ! ${v.id} [${v.severity ?? 'unknown'}${score}] \u2014 ${v.affects}`);
+      lines.push(`  ! ${v.id} [${v.severity ?? 'unknown'}${score}]${vexNote(v)} — ${v.affects}`);
     }
     lines.push('');
   }
@@ -155,11 +164,11 @@ function renderMarkdown(r: ChangeReport): string {
   }
   if (r.newCVEs.length > 0) {
     lines.push('## \ud83d\udea8 New CVEs', '');
-    lines.push('| CVE ID | Severity | CVSS | Affects |');
+lines.push('| CVE ID | Severity | CVSS | Affects |');
     lines.push('|--------|----------|------|---------|');
     for (const v of r.newCVEs) {
-      const score = v.cvssScore !== undefined ? String(v.cvssScore) : '\u2014';
-      lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.severity)} | ${escapeCell(score)} | ${escapeCell(v.affects)} |`);
+      const score = v.cvssScore !== undefined ? String(v.cvssScore) : '—';
+      lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.severity)}${vexNote(v)} | ${escapeCell(score)} | ${escapeCell(v.affects)} |`);
     }
     lines.push('');
   }

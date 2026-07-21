@@ -37,6 +37,14 @@ export interface CVEEntry {
   cvssScore?: number;
   /** Short description */
   description?: string;
+  /**
+   * VEX analysis state, lowercased, from CycloneDX `vulnerabilities[].analysis.state`
+   * (e.g. "not_affected", "false_positive", "exploitable", "in_triage",
+   * "resolved"). Absent when the SBOM carries no VEX analysis for the entry.
+   * States that declare the product is not impacted are treated as gate
+   * suppressions — see `isSuppressed` in cli.ts.
+   */
+  analysisState?: string;
 }
 
 /** A parsed SBOM document */

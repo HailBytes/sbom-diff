@@ -145,15 +145,36 @@ function assertFailOn(value: string | undefined): FailOn {
 }
 
 /**
+ * CycloneDX VEX analysis states that explicitly declare the product is not
+ * impacted by a vulnerability. A CVE carrying one of these is a documented
+ * suppression, not an active finding, so it must never fail the CI gate —
+ * that is the entire purpose of VEX. See CycloneDX `vulnerabilities[].analysis.state`.
+ */
+const SUPPRESSED_ANALYSIS_STATES = new Set(['not_affected', 'false_positive']);
+
+/**
+ * True when a vulnerability carries a VEX analysis state that declares the
+ * product unaffected, so the gate should ignore it.
+ */
+export function isSuppressed(v: CVEEntry): boolean {
+  return v.analysisState !== undefined && SUPPRESSED_ANALYSIS_STATES.has(v.analysisState);
+}
+
+/**
  * Evaluate the CI/CD gate against a diff. Returns the new CVEs that trip the
  * gate (empty when the gate passes). A new CVE with an unknown severity only
  * trips the `any` gate, since it cannot be compared against a severity threshold.
+ *
+ * Vulnerabilities suppressed by a VEX `not_affected` / `false_positive` analysis
+ * state are excluded before the policy is applied, so an SBOM's own assessment
+ * that it is not impacted cannot produce a false gate failure.
  */
 export function gateFailures(report: ChangeReport, failOn: FailOn): CVEEntry[] {
   if (failOn === 'none') return [];
-  if (failOn === 'any') return report.newCVEs;
+  const actionable = report.newCVEs.filter(v => !isSuppressed(v));
+  if (failOn === 'any') return actionable;
   const threshold = SEVERITY_RANK[failOn];
-  return report.newCVEs.filter(
+  return actionable.filter(
     v => v.severity !== undefined && SEVERITY_RANK[v.severity] >= threshold,
   );
 }

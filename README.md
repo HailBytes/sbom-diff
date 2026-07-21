@@ -61,6 +61,12 @@ your pipeline stops on risky changes:
 | `any` | any new CVE is introduced |
 | `low` / `medium` / `high` / `critical` | a new CVE appears at or above that severity |
 
+**VEX-aware:** CycloneDX vulnerabilities whose `analysis.state` is `not_affected`
+or `false_positive` are treated as documented suppressions and never trip the
+gate — that is the whole point of VEX. They still appear in the report (tagged
+`(VEX: not_affected)`) so the audit trail is complete, but they won't fail your
+build.
+
 ```yaml
 # GitHub Actions example
 - name: Gate on new high-severity CVEs
