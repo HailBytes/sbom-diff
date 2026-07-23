@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `src/diff.ts` — Version upgrades are now detected for real-world SBOMs. Component matching keyed on the raw purl, but purls embed the version (e.g. `pkg:npm/lodash@4.17.21`), so every upgrade was misreported as one removed + one added component and the `upgraded` section was always empty. Components are now matched on a version-independent purl key (type/namespace/name plus qualifiers/subpath), correctly surfacing upgrades. Handles unencoded scoped-npm purls and qualifiers.
+
 ### Added
 - `src/cli.ts` — `--fail-on none|any|low|medium|high|critical` flag: turns the diff into a CI/CD gate that exits with code `3` when new CVEs meet the chosen severity policy (default `none` preserves prior always-exit-`0` behaviour)
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
