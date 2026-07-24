@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { parse } from './parser.js';
 import { diff } from './diff.js';
 import { renderReport } from './reporter.js';
-import type { ChangeReport, CVEEntry, ReportFormat } from './types.js';
+import type { ChangeReport, CVEEntry, ReportFormat, SBOM } from './types.js';
 
 const USAGE =
   'Usage: sbom-diff <old.json> <new.json> [--format text|json|markdown] [--fail-on none|any|low|medium|high|critical]';
@@ -111,6 +111,34 @@ export function gateFailures(report: ChangeReport, failOn: FailOn): CVEEntry[] {
   );
 }
 
+/**
+ * Guard against a silently fail-open CVE gate.
+ *
+ * `--fail-on` can only trip on vulnerabilities that are *embedded in the SBOMs*
+ * being compared (`diff()` derives `newCVEs` from each SBOM's `vulnerabilities`
+ * list). Most SBOMs carry no such data: SPDX 2.x has no vulnerability field at
+ * all, and the default output of common CycloneDX generators omits it —
+ * vulnerabilities are usually attached by a separate scan/VEX step. When a gate
+ * is armed but neither input carries vulnerability data, the gate has nothing to
+ * evaluate and always passes, which in CI reads as "no new CVEs" when the truth
+ * is "CVEs were never checked".
+ *
+ * Returns a human-readable warning for that fail-open case, or `null` when the
+ * gate is off (`none`) or at least one SBOM actually carries vulnerability data.
+ */
+export function gateWarning(oldSBOM: SBOM, newSBOM: SBOM, failOn: FailOn): string | null {
+  if (failOn === 'none') return null;
+  const hasVulnData =
+    (oldSBOM.vulnerabilities?.length ?? 0) > 0 || (newSBOM.vulnerabilities?.length ?? 0) > 0;
+  if (hasVulnData) return null;
+  return (
+    `Warning: --fail-on "${failOn}" is set, but neither SBOM contains vulnerability data, ` +
+    'so the CVE gate has nothing to evaluate and will pass. Most SBOMs do not embed ' +
+    'vulnerabilities (all SPDX 2.x, and the default output of common CycloneDX generators); ' +
+    'attach a scan/VEX step that emits a CycloneDX 1.4+ "vulnerabilities" list to enable CVE gating.'
+  );
+}
+
 async function main(): Promise<void> {
   const { positional, format, failOn } = parseArgs(process.argv.slice(2));
 
@@ -131,6 +159,9 @@ async function main(): Promise<void> {
   const report = diff(oldSBOM, newSBOM);
 
   console.log(renderReport(report, format));
+
+  const warning = gateWarning(oldSBOM, newSBOM, failOn);
+  if (warning) console.error(warning);
 
   const failures = gateFailures(report, failOn);
   if (failures.length > 0) {

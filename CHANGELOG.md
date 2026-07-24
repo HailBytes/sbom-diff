@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `src/cli.ts` — `gateWarning()`: when `--fail-on` is armed but neither compared SBOM contains vulnerability data, the CLI now prints a warning to `stderr` explaining the CVE gate has nothing to evaluate and will pass. Guards against a silent fail-open (SPDX 2.x has no vulnerability field; default CycloneDX output omits one), so a green gate is never mistaken for "no new CVEs".
 - `src/cli.ts` — `--fail-on none|any|low|medium|high|critical` flag: turns the diff into a CI/CD gate that exits with code `3` when new CVEs meet the chosen severity policy (default `none` preserves prior always-exit-`0` behaviour)
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
 - `src/types.ts` — Full domain model: `SBOM`, `Component`, `CVEEntry`, `ChangeReport`, `VersionChange`, `SBOMFormat`, `ReportFormat`
