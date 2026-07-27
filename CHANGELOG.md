@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `src/diff.ts` — Upgrade detection now works for versioned purls. Component identity was keyed on the full purl (which embeds the version, e.g. `pkg:npm/lodash@4.17.21`), so a version bump was reported as a removal + addition and `upgraded` stayed empty for essentially every real-world SBOM. Identity is now derived from the version-independent purl coordinates.
+
 ### Added
 - `src/cli.ts` — `--fail-on none|any|low|medium|high|critical` flag: turns the diff into a CI/CD gate that exits with code `3` when new CVEs meet the chosen severity policy (default `none` preserves prior always-exit-`0` behaviour)
 - Real devDependencies: `typescript`, `vitest`, `@vitest/coverage-v8`, `typescript-eslint`, `@types/node`
