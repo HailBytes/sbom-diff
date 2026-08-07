@@ -69,6 +69,21 @@ function renderText(r: ChangeReport): string {
   return lines.join('\n');
 }
 
+/**
+ * Escape a value for safe interpolation into a Markdown table cell.
+ *
+ * Component and CVE strings originate from the SBOM under inspection, whose
+ * package names, versions, and CVE descriptions are attacker-influenced. A raw
+ * `|` adds a phantom column (corrupting the table), and a newline starts a new
+ * row (letting crafted input forge or hide entries) — both matter because the
+ * README pitches this Markdown output for posting into PR comments. Escape `|`
+ * and flatten line breaks so a value always renders as exactly one cell.
+ */
+function escapeCell(value: string | undefined, fallback = '—'): string {
+  if (value === undefined || value === '') return fallback;
+  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
 function renderMarkdown(r: ChangeReport): string {
   const lines: string[] = [
     '# SBOM Diff Report',
@@ -90,14 +105,14 @@ function renderMarkdown(r: ChangeReport): string {
     lines.push('## \u2795 Added Components', '');
     lines.push('| Name | Version | Ecosystem |');
     lines.push('|------|---------|-----------|');
-    for (const c of r.added) lines.push(`| ${c.name} | ${c.version ?? '\u2014'} | ${c.ecosystem ?? '\u2014'} |`);
+    for (const c of r.added) lines.push(`| ${escapeCell(c.name)} | ${escapeCell(c.version)} | ${escapeCell(c.ecosystem)} |`);
     lines.push('');
   }
   if (r.removed.length > 0) {
     lines.push('## \u2796 Removed Components', '');
     lines.push('| Name | Version |');
     lines.push('|------|---------|');
-    for (const c of r.removed) lines.push(`| ${c.name} | ${c.version ?? '\u2014'} |`);
+    for (const c of r.removed) lines.push(`| ${escapeCell(c.name)} | ${escapeCell(c.version)} |`);
     lines.push('');
   }
   if (r.upgraded.length > 0) {
@@ -105,7 +120,7 @@ function renderMarkdown(r: ChangeReport): string {
     lines.push('| Name | From | To | Major? |');
     lines.push('|------|------|----|--------|');
     for (const u of r.upgraded) {
-      lines.push(`| ${u.component.name} | ${u.from} | ${u.to} | ${u.isMajorBump ? '\u26a0\ufe0f Yes' : 'No'} |`);
+      lines.push(`| ${escapeCell(u.component.name)} | ${escapeCell(u.from)} | ${escapeCell(u.to)} | ${u.isMajorBump ? '\u26a0\ufe0f Yes' : 'No'} |`);
     }
     lines.push('');
   }
@@ -122,7 +137,7 @@ function renderMarkdown(r: ChangeReport): string {
     lines.push('|--------|----------|------|---------|');
     for (const v of r.newCVEs) {
       const score = v.cvssScore !== undefined ? String(v.cvssScore) : '\u2014';
-      lines.push(`| ${v.id} | ${v.severity ?? '\u2014'} | ${score} | ${v.affects} |`);
+      lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.severity)} | ${escapeCell(score)} | ${escapeCell(v.affects)} |`);
     }
     lines.push('');
   }
@@ -130,7 +145,7 @@ function renderMarkdown(r: ChangeReport): string {
     lines.push('## \u2705 Fixed CVEs', '');
     lines.push('| CVE ID | Affects |');
     lines.push('|--------|---------|');
-    for (const v of r.fixedCVEs) lines.push(`| ${v.id} | ${v.affects} |`);
+    for (const v of r.fixedCVEs) lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.affects)} |`);
   }
 
   return lines.join('\n');
