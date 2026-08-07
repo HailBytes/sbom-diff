@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs, gateFailures, gateWarning } from '../cli.js';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { parseArgs, loadSbom, gateFailures, gateWarning } from '../cli.js';
 import type { ChangeReport, CVEEntry, SBOM } from '../types.js';
 
 describe('parseArgs', () => {
@@ -159,5 +162,41 @@ describe('gateWarning', () => {
     expect(gateWarning(noField, noField, 'medium')).toMatch(
       /neither SBOM contains vulnerability data/,
     );
+  });
+});
+
+describe('loadSbom', () => {
+  it('wraps a missing file with its path and role', async () => {
+    await expect(loadSbom('/no/such/sbom-diff-missing.json', 'old')).rejects.toThrowError(
+      "Failed to read old SBOM '/no/such/sbom-diff-missing.json'",
+    );
+  });
+
+  it('wraps malformed JSON with its path and role', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sbom-diff-'));
+    const path = join(dir, 'bad.json');
+    await writeFile(path, '{ not valid json');
+    try {
+      await expect(loadSbom(path, 'new')).rejects.toThrowError(
+        `Failed to parse new SBOM '${path}'`,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('parses a valid SBOM file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sbom-diff-'));
+    const path = join(dir, 'good.json');
+    await writeFile(
+      path,
+      JSON.stringify({ bomFormat: 'CycloneDX', specVersion: '1.5', components: [] }),
+    );
+    try {
+      const sbom = await loadSbom(path, 'old');
+      expect(sbom.format).toBe('cyclonedx');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

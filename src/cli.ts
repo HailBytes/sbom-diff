@@ -138,6 +138,35 @@ export function gateWarning(oldSBOM: SBOM, newSBOM: SBOM, failOn: FailOn): strin
     'attach a scan/VEX step that emits a CycloneDX 1.4+ "vulnerabilities" list to enable CVE gating.'
   );
 }
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Read and parse an SBOM file, attaching the file path and role to any failure.
+ *
+ * The underlying `readFile`/`JSON.parse` errors (e.g. `ENOENT` or
+ * `Expected property name or '}' in JSON at position 2`) don't say which of the
+ * two inputs failed or that the SBOM-load step is where it broke. In a CI gate a
+ * wrong or corrupt artifact is a common misconfiguration, so surface the path and
+ * whether the read or the parse failed instead of a bare low-level message.
+ *
+ * @param label human-readable role of the file, e.g. `old` or `new`.
+ * @throws if the file cannot be read or is not valid JSON / SBOM.
+ */
+export async function loadSbom(path: string, label: string): Promise<SBOM> {
+  let raw: string;
+  try {
+    raw = await readFile(path, 'utf-8');
+  } catch (err) {
+    throw new Error(`Failed to read ${label} SBOM '${path}': ${errorMessage(err)}`);
+  }
+  try {
+    return parse(raw);
+  } catch (err) {
+    throw new Error(`Failed to parse ${label} SBOM '${path}': ${errorMessage(err)}`);
+  }
+}
 
 async function main(): Promise<void> {
   const { positional, format, failOn } = parseArgs(process.argv.slice(2));
@@ -149,13 +178,11 @@ async function main(): Promise<void> {
 
   const [oldPath, newPath] = positional;
 
-  const [oldRaw, newRaw] = await Promise.all([
-    readFile(oldPath, 'utf-8'),
-    readFile(newPath, 'utf-8'),
+  const [oldSBOM, newSBOM] = await Promise.all([
+    loadSbom(oldPath, 'old'),
+    loadSbom(newPath, 'new'),
   ]);
 
-  const oldSBOM = parse(oldRaw);
-  const newSBOM = parse(newRaw);
   const report = diff(oldSBOM, newSBOM);
 
   console.log(renderReport(report, format));
