@@ -276,6 +276,51 @@ describe('parse (SPDX)', () => {
     });
     expect(sbom.components[0].license).toBeUndefined();
   });
+
+  it('excludes the document subject named via documentDescribes', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-app',
+      documentDescribes: ['SPDXRef-Package-my-app'],
+      packages: [
+        { SPDXID: 'SPDXRef-Package-my-app', name: 'my-app', versionInfo: '1.0.0' },
+        { SPDXID: 'SPDXRef-Package-lodash', name: 'lodash', versionInfo: '4.17.21' },
+      ],
+    });
+    expect(sbom.components).toHaveLength(1);
+    expect(sbom.components[0].name).toBe('lodash');
+  });
+
+  it('excludes the subject named via a DESCRIBES relationship', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-app',
+      relationships: [
+        {
+          spdxElementId: 'SPDXRef-DOCUMENT',
+          relationshipType: 'DESCRIBES',
+          relatedSpdxElement: 'SPDXRef-Package-my-app',
+        },
+      ],
+      packages: [
+        { SPDXID: 'SPDXRef-Package-my-app', name: 'my-app', versionInfo: '1.0.0' },
+        { SPDXID: 'SPDXRef-Package-lodash', name: 'lodash', versionInfo: '4.17.21' },
+      ],
+    });
+    expect(sbom.components.map(c => c.name)).toEqual(['lodash']);
+  });
+
+  it('keeps every package when the document declares no subject', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-app',
+      packages: [
+        { SPDXID: 'SPDXRef-Package-my-app', name: 'my-app', versionInfo: '1.0.0' },
+        { SPDXID: 'SPDXRef-Package-lodash', name: 'lodash', versionInfo: '4.17.21' },
+      ],
+    });
+    expect(sbom.components).toHaveLength(2);
+  });
 });
 
 describe('parse (JSON string input)', () => {

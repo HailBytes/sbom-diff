@@ -66,8 +66,18 @@ export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
  */
 export function parseSPDX(obj: Record<string, unknown>): SBOM {
   const packages = Array.isArray(obj.packages) ? obj.packages : [];
+  const rootIds = extractSPDXRootIds(obj);
 
-  const components: Component[] = packages.map((pkg: Record<string, unknown>) => ({
+  const components: Component[] = packages
+    // Exclude the document's own subject package(s) — the application being
+    // described — so a release-to-release diff doesn't report the app itself
+    // as a spurious dependency change. This mirrors CycloneDX, where the
+    // subject (metadata.component) is already kept out of `components`.
+    .filter((pkg: Record<string, unknown>) => {
+      const id = typeof pkg.SPDXID === 'string' ? pkg.SPDXID : undefined;
+      return !(id !== undefined && rootIds.has(id));
+    })
+    .map((pkg: Record<string, unknown>) => ({
     purl: extractSPDXPurl(pkg),
     name: typeof pkg.name === 'string' ? pkg.name : 'unknown',
     version: normalizeSPDXValue(pkg.versionInfo),
@@ -265,6 +275,48 @@ function normalizeSPDXValue(value: unknown): string | undefined {
   const trimmed = value.trim();
   if (trimmed === '' || trimmed === 'NOASSERTION' || trimmed === 'NONE') return undefined;
   return trimmed;
+}
+
+/**
+ * Collect the SPDXIDs of the package(s) the document describes (its subject).
+ *
+ * SPDX marks the primary/root element two ways, and generators use either:
+ *  - the `documentDescribes` shortcut array of SPDXIDs (SPDX 2.2+), and/or
+ *  - a `DESCRIBES` relationship from `SPDXRef-DOCUMENT` (or its inverse,
+ *    `DESCRIBED_BY` pointing back at the document).
+ *
+ * Returns an empty set when the document declares no subject, so packages are
+ * only ever excluded when the SBOM explicitly identifies them as the root.
+ */
+function extractSPDXRootIds(obj: Record<string, unknown>): Set<string> {
+  const ids = new Set<string>();
+
+  if (Array.isArray(obj.documentDescribes)) {
+    for (const id of obj.documentDescribes) {
+      if (typeof id === 'string') ids.add(id);
+    }
+  }
+
+  if (Array.isArray(obj.relationships)) {
+    for (const raw of obj.relationships) {
+      const rel = raw as Record<string, unknown>;
+      if (
+        rel.relationshipType === 'DESCRIBES' &&
+        rel.spdxElementId === 'SPDXRef-DOCUMENT' &&
+        typeof rel.relatedSpdxElement === 'string'
+      ) {
+        ids.add(rel.relatedSpdxElement);
+      } else if (
+        rel.relationshipType === 'DESCRIBED_BY' &&
+        rel.relatedSpdxElement === 'SPDXRef-DOCUMENT' &&
+        typeof rel.spdxElementId === 'string'
+      ) {
+        ids.add(rel.spdxElementId);
+      }
+    }
+  }
+
+  return ids;
 }
 
 function extractSPDXPurl(pkg: Record<string, unknown>): string | undefined {
