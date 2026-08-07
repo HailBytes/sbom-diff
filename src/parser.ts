@@ -244,11 +244,17 @@ function extractCycloneDXSupplier(c: Record<string, unknown>): string | undefine
   return typeof supplier.name === 'string' ? supplier.name : undefined;
 }
 
-function extractCycloneDXAffects(v: Record<string, unknown>): string {
+function extractCycloneDXAffects(v: Record<string, unknown>): string[] {
   const affects = v.affects;
-  if (!Array.isArray(affects) || affects.length === 0) return 'unknown';
-  const ref = affects[0] as Record<string, unknown>;
-  return typeof ref.ref === 'string' ? ref.ref : 'unknown';
+  if (!Array.isArray(affects) || affects.length === 0) return ['unknown'];
+  const refs: string[] = [];
+  for (const entry of affects) {
+    if (typeof entry === 'object' && entry !== null) {
+      const ref = (entry as Record<string, unknown>).ref;
+      if (typeof ref === 'string') refs.push(ref);
+    }
+  }
+  return refs.length > 0 ? refs : ['unknown'];
 }
 
 /** Severity ordering, lowest to highest, for selecting the most severe rating. */

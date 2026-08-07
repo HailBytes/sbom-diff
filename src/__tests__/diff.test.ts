@@ -139,7 +139,7 @@ describe('diff', () => {
   });
 
   it('detects new CVEs', () => {
-    const cve = { id: 'CVE-2021-44228', affects: 'pkg:npm/log4j@2.14.1', severity: 'critical' as const };
+    const cve = { id: 'CVE-2021-44228', affects: ['pkg:npm/log4j@2.14.1'], severity: 'critical' as const };
     const a = makesbom([]);
     const b = makesbom([], [cve]);
     const report = diff(a, b);
@@ -148,7 +148,7 @@ describe('diff', () => {
   });
 
   it('detects fixed CVEs', () => {
-    const cve = { id: 'CVE-2021-44228', affects: 'pkg:npm/log4j@2.14.1', severity: 'critical' as const };
+    const cve = { id: 'CVE-2021-44228', affects: ['pkg:npm/log4j@2.14.1'], severity: 'critical' as const };
     const a = makesbom([], [cve]);
     const b = makesbom([]);
     const report = diff(a, b);
@@ -204,10 +204,10 @@ describe('diff ordering', () => {
   it('orders new CVEs by severity (most severe first), then by id', () => {
     const a = makesbom([]);
     const b = makesbom([], [
-      { id: 'CVE-2023-0002', affects: 'x', severity: 'low' },
-      { id: 'CVE-2023-0003', affects: 'y', severity: 'critical' },
-      { id: 'CVE-2023-0001', affects: 'z', severity: 'critical' },
-      { id: 'CVE-2023-0004', affects: 'w', severity: 'medium' },
+      { id: 'CVE-2023-0002', affects: ['x'], severity: 'low' },
+      { id: 'CVE-2023-0003', affects: ['y'], severity: 'critical' },
+      { id: 'CVE-2023-0001', affects: ['z'], severity: 'critical' },
+      { id: 'CVE-2023-0004', affects: ['w'], severity: 'medium' },
     ]);
     const report = diff(a, b);
     expect(report.newCVEs.map(v => v.id)).toEqual([
@@ -241,12 +241,12 @@ describe('diff ordering', () => {
 
   it('detects a CVE whose severity was re-scored between scans (issue #46)', () => {
     const a = makesbom([], [
-      { id: 'CVE-2021-44228', affects: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1', severity: 'medium', cvssScore: 6.0 },
-      { id: 'CVE-2023-0001', affects: 'pkg:npm/foo@1.0.0', severity: 'high', cvssScore: 8.0 },
+      { id: 'CVE-2021-44228', affects: ['pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1'], severity: 'medium', cvssScore: 6.0 },
+      { id: 'CVE-2023-0001', affects: ['pkg:npm/foo@1.0.0'], severity: 'high', cvssScore: 8.0 },
     ]);
     const b = makesbom([], [
-      { id: 'CVE-2021-44228', affects: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1', severity: 'critical', cvssScore: 10.0 },
-      { id: 'CVE-2023-0001', affects: 'pkg:npm/foo@1.0.0', severity: 'low', cvssScore: 3.0 },
+      { id: 'CVE-2021-44228', affects: ['pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1'], severity: 'critical', cvssScore: 10.0 },
+      { id: 'CVE-2023-0001', affects: ['pkg:npm/foo@1.0.0'], severity: 'low', cvssScore: 3.0 },
     ]);
     const report = diff(a, b);
     // The escalated CVE is in neither newCVEs nor fixedCVEs.
@@ -265,10 +265,10 @@ describe('diff ordering', () => {
 
   it('flags a CVSS score rise even when the severity label is unchanged', () => {
     const a = makesbom([], [
-      { id: 'CVE-2024-0001', affects: 'pkg:npm/a@1.0.0', severity: 'high', cvssScore: 7.0 },
+      { id: 'CVE-2024-0001', affects: ['pkg:npm/a@1.0.0'], severity: 'high', cvssScore: 7.0 },
     ]);
     const b = makesbom([], [
-      { id: 'CVE-2024-0001', affects: 'pkg:npm/a@1.0.0', severity: 'high', cvssScore: 9.0 },
+      { id: 'CVE-2024-0001', affects: ['pkg:npm/a@1.0.0'], severity: 'high', cvssScore: 9.0 },
     ]);
     const report = diff(a, b);
     expect(report.severityEscalations).toHaveLength(1);

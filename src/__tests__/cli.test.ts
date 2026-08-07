@@ -71,7 +71,7 @@ describe('gateFailures', () => {
     analysisState?: string,
   ): CVEEntry => ({
     id,
-    affects: 'pkg:npm/example',
+    affects: ['pkg:npm/example'],
     severity,
     analysisState,
   });
@@ -160,7 +160,7 @@ describe('gateFailures', () => {
 describe('isSuppressed', () => {
   const withState = (analysisState?: string): CVEEntry => ({
     id: 'CVE-x',
-    affects: 'pkg:npm/example',
+    affects: ['pkg:npm/example'],
     analysisState,
   });
 
@@ -183,7 +183,7 @@ describe('gateWarning', () => {
     components: [],
     vulnerabilities,
   });
-  const withCve: SBOM = sbom([{ id: 'CVE-1', affects: 'pkg:npm/example', severity: 'high' }]);
+  const withCve: SBOM = sbom([{ id: 'CVE-1', affects: ['pkg:npm/example'], severity: 'high' }]);
 
   it('returns null when the gate is off, even without vulnerability data', () => {
     expect(gateWarning(sbom(), sbom(), 'none')).toBeNull();
