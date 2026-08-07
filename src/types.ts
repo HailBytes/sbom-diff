@@ -57,13 +57,15 @@ export interface SBOM {
   vulnerabilities?: CVEEntry[];
 }
 
-/** Version change details for an upgraded component */
+/** Version change details for a component whose version changed */
 export interface VersionChange {
   component: Component;
   from: string;
   to: string;
-  /** true if semver major bumped */
+  /** true if the semver major version bumped (only meaningful for upgrades) */
   isMajorBump: boolean;
+  /** true if the new version is lower than the old one (a rollback / downgrade) */
+  isDowngrade: boolean;
 }
 
 /** A license change for a component present in both SBOMs (e.g. MIT -> GPL-3.0) */
@@ -94,6 +96,8 @@ export interface ChangeReport {
     totalRemoved: number;
     totalUpgraded: number;
     totalLicenseChanges: number;
+    /** Subset of `upgraded` whose version moved backwards */
+    totalDowngraded: number;
     totalNewCVEs: number;
     totalFixedCVEs: number;
   };

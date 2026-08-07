@@ -20,7 +20,8 @@ function renderText(r: ChangeReport): string {
   lines.push(`Summary:`);
   lines.push(`  Added:       ${r.summary.totalAdded}`);
   lines.push(`  Removed:     ${r.summary.totalRemoved}`);
-  lines.push(`  Upgraded:    ${r.summary.totalUpgraded}`);
+  lines.push(`  Upgraded:    ${r.summary.totalUpgraded - r.summary.totalDowngraded}`);
+  lines.push(`  Downgraded:  ${r.summary.totalDowngraded}`);
   lines.push(`  Licenses:    ${r.summary.totalLicenseChanges}`);
   lines.push(`  New CVEs:    ${r.summary.totalNewCVEs}`);
   lines.push(`  Fixed CVEs:  ${r.summary.totalFixedCVEs}`);
@@ -36,9 +37,11 @@ function renderText(r: ChangeReport): string {
     for (const c of r.removed) lines.push(`  - ${c.name}@${c.version ?? 'unknown'}`);
     lines.push('');
   }
-  if (r.upgraded.length > 0) {
+  const upgrades = r.upgraded.filter(u => !u.isDowngrade);
+  const downgrades = r.upgraded.filter(u => u.isDowngrade);
+  if (upgrades.length > 0) {
     lines.push('\u2191 Upgraded Components:');
-    for (const u of r.upgraded) {
+    for (const u of upgrades) {
       const major = u.isMajorBump ? ' [MAJOR]' : '';
       lines.push(`  ~ ${u.component.name}: ${u.from} \u2192 ${u.to}${major}`);
     }
@@ -48,6 +51,13 @@ function renderText(r: ChangeReport): string {
     lines.push('\u2696 License Changes:');
     for (const l of r.licenseChanges) {
       lines.push(`  ~ ${l.component.name}: ${l.from} \u2192 ${l.to}`);
+    }
+    lines.push('');
+  }
+  if (downgrades.length > 0) {
+    lines.push('\u2193 Downgraded Components:');
+    for (const u of downgrades) {
+      lines.push(`  ~ ${u.component.name}: ${u.from} \u2192 ${u.to} [DOWNGRADE]`);
     }
     lines.push('');
   }
@@ -94,7 +104,8 @@ function renderMarkdown(r: ChangeReport): string {
     '|--------|-------|',
     `| Added components | ${r.summary.totalAdded} |`,
     `| Removed components | ${r.summary.totalRemoved} |`,
-    `| Upgraded components | ${r.summary.totalUpgraded} |`,
+    `| Upgraded components | ${r.summary.totalUpgraded - r.summary.totalDowngraded} |`,
+    `| Downgraded components | ${r.summary.totalDowngraded} |`,
     `| License changes | ${r.summary.totalLicenseChanges} |`,
     `| New CVEs | ${r.summary.totalNewCVEs} |`,
     `| Fixed CVEs | ${r.summary.totalFixedCVEs} |`,
@@ -115,11 +126,13 @@ function renderMarkdown(r: ChangeReport): string {
     for (const c of r.removed) lines.push(`| ${escapeCell(c.name)} | ${escapeCell(c.version)} |`);
     lines.push('');
   }
-  if (r.upgraded.length > 0) {
+  const mdUpgrades = r.upgraded.filter(u => !u.isDowngrade);
+  const mdDowngrades = r.upgraded.filter(u => u.isDowngrade);
+  if (mdUpgrades.length > 0) {
     lines.push('## \u2b06\ufe0f Upgraded Components', '');
     lines.push('| Name | From | To | Major? |');
     lines.push('|------|------|----|--------|');
-    for (const u of r.upgraded) {
+    for (const u of mdUpgrades) {
       lines.push(`| ${escapeCell(u.component.name)} | ${escapeCell(u.from)} | ${escapeCell(u.to)} | ${u.isMajorBump ? '\u26a0\ufe0f Yes' : 'No'} |`);
     }
     lines.push('');
@@ -128,7 +141,16 @@ function renderMarkdown(r: ChangeReport): string {
     lines.push('## \u2696\ufe0f License Changes', '');
     lines.push('| Component | From | To |');
     lines.push('|-----------|------|----|');
-    for (const l of r.licenseChanges) lines.push(`| ${l.component.name} | ${l.from} | ${l.to} |`);
+    for (const l of r.licenseChanges) lines.push(`| ${escapeCell(l.component.name)} | ${escapeCell(l.from)} | ${escapeCell(l.to)} |`);
+    lines.push('');
+  }
+  if (mdDowngrades.length > 0) {
+    lines.push('## \u2b07\ufe0f Downgraded Components', '');
+    lines.push('| Name | From | To |');
+    lines.push('|------|------|----|');
+    for (const u of mdDowngrades) {
+      lines.push(`| ${escapeCell(u.component.name)} | ${escapeCell(u.from)} | ${escapeCell(u.to)} |`);
+    }
     lines.push('');
   }
   if (r.newCVEs.length > 0) {

@@ -80,6 +80,7 @@ describe('gateFailures', () => {
       totalRemoved: 0,
       totalUpgraded: 0,
       totalLicenseChanges: 0,
+      totalDowngraded: 0,
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: 0,
     },
