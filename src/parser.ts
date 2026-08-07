@@ -71,7 +71,7 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
     purl: extractSPDXPurl(pkg),
     name: typeof pkg.name === 'string' ? pkg.name : 'unknown',
     version: normalizeSPDXValue(pkg.versionInfo),
-    license: typeof pkg.licenseConcluded === 'string' ? pkg.licenseConcluded : undefined,
+    license: extractSPDXLicense(pkg),
     ecosystem: extractEcosystemFromPurl(extractSPDXPurl(pkg) ?? ''),
     supplier: normalizeSPDXValue(pkg.supplier),
   }));
@@ -143,7 +143,21 @@ function extractCycloneDXLicense(c: Record<string, unknown>): string | undefined
   const license = first.license as Record<string, unknown> | undefined;
   if (license && typeof license.id === 'string') return license.id;
   if (license && typeof license.name === 'string') return license.name;
+  // CycloneDX also allows an SPDX license *expression* in place of a license
+  // object, e.g. { "expression": "MIT OR Apache-2.0" }. Dual/expression-licensed
+  // components are common, so without this branch their license is silently lost.
+  if (typeof first.expression === 'string') return first.expression;
   return undefined;
+}
+
+function extractSPDXLicense(pkg: Record<string, unknown>): string | undefined {
+  // Prefer a concrete concluded license, but many generators leave it as the SPDX
+  // sentinel "NOASSERTION" while the real license sits in licenseDeclared. Fall
+  // back to the declared license and drop the sentinel so a package with a known
+  // license isn't reported as having the meaningless value "NOASSERTION".
+  const meaningful = (v: unknown): string | undefined =>
+    typeof v === 'string' && v !== 'NOASSERTION' ? v : undefined;
+  return meaningful(pkg.licenseConcluded) ?? meaningful(pkg.licenseDeclared);
 }
 
 function extractCycloneDXSupplier(c: Record<string, unknown>): string | undefined {
