@@ -75,6 +75,23 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.components[1].hashes).toBeUndefined();
   });
 
+  it('extracts the component scope (dev/test vs runtime) (issue #56)', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.4',
+      components: [
+        { name: 'runtime-pkg', version: '1.0.0', scope: 'required' },
+        { name: 'dev-pkg', version: '1.0.0', scope: 'optional' },
+        { name: 'excluded-pkg', version: '1.0.0', scope: 'excluded' },
+        { name: 'no-scope-pkg', version: '1.0.0' },
+      ],
+    });
+    expect(sbom.components[0].scope).toBe('required');
+    expect(sbom.components[1].scope).toBe('optional');
+    expect(sbom.components[2].scope).toBe('excluded');
+    expect(sbom.components[3].scope).toBeUndefined();
+  });
+
   it('parses vulnerabilities', () => {
     const sbom = parse(cyclonedxFixture);
     expect(sbom.vulnerabilities).toHaveLength(1);
