@@ -105,22 +105,56 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
 }
 
 /**
+ * Thrown when parse() is given input that is not a recognized SBOM document.
+ * The message explains what was expected so a wrong-format file (package.json,
+ * a truncated export, garbage JSON) fails loudly instead of silently passing
+ * a CI gate with "nothing changed".
+ */
+export class ParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ParseError';
+  }
+}
+
+/**
  * Parse a JSON string or object into an SBOM, auto-detecting format.
+ *
+ * Throws ParseError when the input is not a recognized CycloneDX or SPDX
+ * document. Silently accepting wrong-format input as an empty SBOM is a
+ * false-negative: a corrupt export or a package.json passed by mistake would
+ * sail through a CI gate as if nothing changed (issue #21).
  */
 export function parse(input: string | Record<string, unknown>): SBOM {
-  // Strip a leading UTF-8 byte order mark (U+FEFF) before parsing. Several SBOM
-  // generators and Windows text tooling emit BOM-prefixed JSON, which is valid
-  // on disk but makes JSON.parse throw a cryptic "Unexpected token" error.
-  const obj: Record<string, unknown> =
-    typeof input === 'string' ? JSON.parse(input.replace(/^\uFEFF/, '')) : input;
-  const format = detectFormat(obj);
+  let obj: unknown;
+  if (typeof input === 'string') {
+    try {
+      // Strip a leading UTF-8 byte order mark (U+FEFF) before parsing. Several
+      // SBOM generators and Windows text tooling emit BOM-prefixed JSON, which
+      // is valid on disk but makes JSON.parse throw a cryptic "Unexpected
+      // token" error.
+      obj = JSON.parse(input.replace(/^\uFEFF/, ''));
+    } catch (e) {
+      throw new ParseError(`input is not valid JSON: ${(e as Error).message}`);
+    }
+  } else {
+    obj = input;
+  }
+
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    throw new ParseError('input is not an SBOM document: expected a JSON object with bomFormat or spdxVersion');
+  }
+
+  const record = obj as Record<string, unknown>;
+  const format = detectFormat(record);
 
   switch (format) {
-    case 'cyclonedx': return parseCycloneDX(obj);
-    case 'spdx': return parseSPDX(obj);
+    case 'cyclonedx': return parseCycloneDX(record);
+    case 'spdx': return parseSPDX(record);
     default:
-      // Best-effort: treat as CycloneDX-like
-      return parseCycloneDX(obj);
+      throw new ParseError(
+        'input is not a recognized SBOM: missing CycloneDX "bomFormat" field and SPDX "spdxVersion" field'
+      );
   }
 }
 
