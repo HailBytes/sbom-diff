@@ -1,4 +1,4 @@
-import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange } from './types.js';
+import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange, SBOMIdentity } from './types.js';
 
 /**
  * Compare two parsed SBOMs and produce a ChangeReport.
@@ -69,6 +69,8 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
   fixedCVEs.sort(compareCVEs);
 
   return {
+    from: toIdentity(a),
+    to: toIdentity(b),
     added,
     removed,
     upgraded,
@@ -84,6 +86,17 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: fixedCVEs.length,
     },
+  };
+}
+
+/** Carry the parsed SBOM's identity fields forward into a diff report. */
+function toIdentity(sbom: SBOM): SBOMIdentity {
+  return {
+    format: sbom.format,
+    specVersion: sbom.specVersion,
+    name: sbom.name,
+    version: sbom.version,
+    generatedAt: sbom.generatedAt,
   };
 }
 

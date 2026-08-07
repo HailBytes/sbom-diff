@@ -85,8 +85,32 @@ export interface LicenseChange {
   to: string;
 }
 
+/**
+ * Minimal carried-forward identity of one of the two SBOMs in a diff. Lets the
+ * report state which artifacts it was produced from (issue #52).
+ */
+export interface SBOMIdentity {
+  /** Detected format (cyclonedx / spdx / unknown) */
+  format: SBOMFormat;
+  /** SBOM spec version (e.g. "1.4" for CycloneDX, "SPDX-2.3" for SPDX) */
+  specVersion?: string;
+  /** Name of the software described by the SBOM */
+  name?: string;
+  /** Version of the software described by the SBOM */
+  version?: string;
+  /** When the SBOM was generated */
+  generatedAt?: string;
+}
+
 /** The full result of diffing two SBOMs */
 export interface ChangeReport {
+  /**
+   * Identity of the "old" (baseline) SBOM that was diffed. Carried through so
+   * audit output can state exactly which two artifacts were compared.
+   */
+  from: SBOMIdentity;
+  /** Identity of the "new" (current) SBOM that was diffed. */
+  to: SBOMIdentity;
   /** Components in B but not in A */
   added: Component[];
   /** Components in A but not in B */

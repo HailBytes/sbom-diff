@@ -1,4 +1,19 @@
-import type { ChangeReport, CVEEntry, ReportFormat } from './types.js';
+import type { ChangeReport, CVEEntry, ReportFormat, SBOMIdentity } from './types.js';
+
+/**
+ * Render one SBOM's identity as a compact single-line description, e.g.
+ * "my-app v1.4.2 (cyclonedx 1.4, generated 2026-08-01T00:00:00Z)". Falls back
+ * to the format alone when the SBOM carries no identity fields.
+ */
+function describeIdentity(id: SBOMIdentity): string {
+  const parts: string[] = [];
+  const name = id.name ? `${id.name}${id.version ? ` v${id.version}` : ''}` : '';
+  if (name) parts.push(name);
+  if (id.specVersion) parts.push(`${id.format} ${id.specVersion}`);
+  else if (id.format !== 'unknown') parts.push(id.format);
+  if (id.generatedAt) parts.push(`generated ${id.generatedAt}`);
+  return parts.length > 0 ? parts.join(' · ') : 'unknown artifact';
+}
 
 /**
  * A short parenthetical noting a vulnerability's VEX analysis state, so a
@@ -25,6 +40,11 @@ export function renderReport(report: ChangeReport, format: ReportFormat = 'text'
 
 function renderText(r: ChangeReport): string {
   const lines: string[] = ['SBOM Diff Report', '=================', ''];
+
+  lines.push(`Compared:`);
+  lines.push(`  From: ${describeIdentity(r.from)}`);
+  lines.push(`  To:   ${describeIdentity(r.to)}`);
+  lines.push('');
 
   lines.push(`Summary:`);
   lines.push(`  Added:       ${r.summary.totalAdded}`);
@@ -106,6 +126,13 @@ function escapeCell(value: string | undefined, fallback = '—'): string {
 function renderMarkdown(r: ChangeReport): string {
   const lines: string[] = [
     '# SBOM Diff Report',
+    '',
+    '## Compared',
+    '',
+    `| | Artifact |`,
+    `|--------|----------|`,
+    `| From | ${escapeCell(describeIdentity(r.from))} |`,
+    `| To | ${escapeCell(describeIdentity(r.to))} |`,
     '',
     '## Summary',
     '',
