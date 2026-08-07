@@ -433,3 +433,31 @@ describe('parse (JSON string input)', () => {
     expect(sbom.components[0].name).toBe('a﻿b');
   });
 });
+
+describe('parse (input validation, issue #21)', () => {
+  it('throws ParseError on a non-SBOM object (e.g. a package.json)', () => {
+    const notAnSbom = JSON.stringify({ name: 'my-app', dependencies: { lodash: '^4.17.21' } });
+    expect(() => parse(notAnSbom)).toThrow(/not a recognized SBOM/);
+  });
+
+  it('throws ParseError on invalid JSON', () => {
+    expect(() => parse('{not json')).toThrow(/not valid JSON/);
+  });
+
+  it('throws ParseError on a JSON array', () => {
+    expect(() => parse('[1, 2, 3]')).toThrow(/not an SBOM document/);
+  });
+
+  it('throws ParseError on null input', () => {
+    expect(() => parse('null')).toThrow(/not an SBOM document/);
+  });
+
+  it('throws ParseError on an object passed directly (not a string)', () => {
+    expect(() => parse({ name: 'my-app', dependencies: {} })).toThrow(/not a recognized SBOM/);
+  });
+
+  it('still accepts valid CycloneDX and SPDX documents', () => {
+    expect(parse(JSON.stringify(cyclonedxFixture)).format).toBe('cyclonedx');
+    expect(parse({ spdxVersion: 'SPDX-2.3', packages: [] }).format).toBe('spdx');
+  });
+});
