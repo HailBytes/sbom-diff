@@ -39,6 +39,7 @@ export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
     license: extractCycloneDXLicense(c),
     ecosystem: extractEcosystemFromPurl(typeof c.purl === 'string' ? c.purl : ''),
     supplier: extractCycloneDXSupplier(c),
+    scope: extractCycloneDXScope(c),
     hashes: extractCycloneDXHashes(c),
   }));
 
@@ -239,9 +240,21 @@ function extractSPDXLicense(pkg: Record<string, unknown>): string | undefined {
 }
 
 function extractCycloneDXSupplier(c: Record<string, unknown>): string | undefined {
-  const supplier = c.supplier as Record<string, unknown> | undefined;
-  if (!supplier) return undefined;
-  return typeof supplier.name === 'string' ? supplier.name : undefined;
+  const supplier = c.supplier;
+  if (typeof supplier !== 'object' || supplier === null) return undefined;
+  return typeof (supplier as Record<string, unknown>).name === 'string' ? (supplier as Record<string, unknown>).name as string : undefined;
+}
+
+/**
+ * Extract the CycloneDX component scope ("required" / "optional" / "excluded").
+ * Returns undefined when absent, which is the meaning of "no scope" in CDX:
+ * scope defaults to "required" when omitted, but we keep it undefined so the
+ * reporter can show "default" rather than a misleading explicit value.
+ */
+function extractCycloneDXScope(c: Record<string, unknown>): 'required' | 'optional' | 'excluded' | undefined {
+  const scope = c.scope;
+  if (scope === 'required' || scope === 'optional' || scope === 'excluded') return scope;
+  return undefined;
 }
 
 function extractCycloneDXAffects(v: Record<string, unknown>): string[] {

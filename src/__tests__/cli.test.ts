@@ -62,6 +62,11 @@ describe('parseArgs', () => {
   it('throws when --fail-on is given without a value', () => {
     expect(() => parseArgs(['old.json', 'new.json', '--fail-on'])).toThrow(/Invalid --fail-on/);
   });
+
+  it('parses --runtime-only as true (default false)', () => {
+    expect(parseArgs(['old.json', 'new.json']).runtimeOnly).toBe(false);
+    expect(parseArgs(['old.json', 'new.json', '--runtime-only']).runtimeOnly).toBe(true);
+  });
 });
 
 describe('gateFailures', () => {

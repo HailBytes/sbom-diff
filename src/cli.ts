@@ -49,18 +49,26 @@ Arguments:
 
 Options:
   --format <fmt>   Output format: text (default), json, or markdown
+  --fail-on <sev>  Fail (exit 3) when a new CVE at/above this severity appears:
+                   none (default), low, medium, high, critical, any
+  --runtime-only   Only consider runtime components (scope=required); dev/test
+                   (scope=optional/excluded) dependencies are filtered out of
+                   the diff and the --fail-on gate
   -h, --help       Show this help and exit
   -v, --version    Print the installed version and exit
 
 Examples:
   sbom-diff old.json new.json
   sbom-diff old.json new.json --format json
-  sbom-diff old.json new.json --format markdown`;
+  sbom-diff old.json new.json --format markdown
+  sbom-diff old.json new.json --runtime-only --fail-on high`;
 
 export interface ParsedArgs {
   positional: string[];
   format: ReportFormat;
   failOn: FailOn;
+  /** true when --runtime-only was requested (filter dev/test deps) */
+  runtimeOnly: boolean;
   /** true when -h/--help was requested */
   help: boolean;
   /** true when -v/--version was requested */
@@ -72,8 +80,8 @@ export interface ParsedArgs {
  * the CI/CD gate policy.
  *
  * Supports `--format text`, `--format=text`, `--fail-on high`, `--fail-on=high`,
- * and flags appearing in any position relative to the positional file paths.
- * Defaults to `text` format and a `none` gate policy.
+ * `--runtime-only`, and flags appearing in any position relative to the
+ * positional file paths. Defaults to `text` format and a `none` gate policy.
  *
  * `-h`/`--help` and `-v`/`--version` short-circuit parsing so they always
  * work — even alongside otherwise-invalid arguments — and never throw.
@@ -82,15 +90,16 @@ export interface ParsedArgs {
  */
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.some(a => a === '-h' || a === '--help')) {
-    return { positional: [], format: 'text', failOn: 'none', help: true, version: false };
+    return { positional: [], format: 'text', failOn: 'none', runtimeOnly: false, help: true, version: false };
   }
   if (argv.some(a => a === '-v' || a === '-V' || a === '--version')) {
-    return { positional: [], format: 'text', failOn: 'none', help: false, version: true };
+    return { positional: [], format: 'text', failOn: 'none', runtimeOnly: false, help: false, version: true };
   }
 
   const positional: string[] = [];
   let format: ReportFormat = 'text';
   let failOn: FailOn = 'none';
+  let runtimeOnly = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -102,6 +111,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
       failOn = assertFailOn(argv[++i]);
     } else if (arg.startsWith('--fail-on=')) {
       failOn = assertFailOn(arg.slice('--fail-on='.length));
+    } else if (arg === '--runtime-only') {
+      runtimeOnly = true;
     } else if (arg.startsWith('-')) {
       throw new Error(`Unknown option: ${arg}\n${USAGE}`);
     } else {
@@ -109,7 +120,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { positional, format, failOn, help: false, version: false };
+  return { positional, format, failOn, runtimeOnly, help: false, version: false };
 }
 
 /**
@@ -237,7 +248,7 @@ export async function loadSbom(path: string, label: string): Promise<SBOM> {
 }
 
 async function main(): Promise<void> {
-  const { positional, format, failOn, help, version } = parseArgs(process.argv.slice(2));
+  const { positional, format, failOn, runtimeOnly, help, version } = parseArgs(process.argv.slice(2));
 
   if (help) {
     console.log(HELP);
@@ -261,11 +272,17 @@ async function main(): Promise<void> {
     loadSbom(newPath, 'new'),
   ]);
 
-  const report = diff(oldSBOM, newSBOM);
+  // With --runtime-only, drop dev/test (scope=optional/excluded) components so
+  // the diff and the --fail-on gate consider only production dependencies.
+  // A component without a scope is runtime by CycloneDX's default, so it stays.
+  const aFinal = runtimeOnly ? filterRuntimeOnly(oldSBOM) : oldSBOM;
+  const bFinal = runtimeOnly ? filterRuntimeOnly(newSBOM) : newSBOM;
+
+  const report = diff(aFinal, bFinal);
 
   console.log(renderReport(report, format));
 
-  const warning = gateWarning(oldSBOM, newSBOM, failOn);
+  const warning = gateWarning(aFinal, bFinal, failOn);
   if (warning) console.error(warning);
 
   const failures = gateFailures(report, failOn);
@@ -276,6 +293,19 @@ async function main(): Promise<void> {
     );
     process.exit(GATE_FAILURE_EXIT_CODE);
   }
+}
+
+/**
+ * Return a copy of the SBOM with only runtime components (those whose scope is
+ * "required" or unset). Dev/test/build dependencies (scope "optional" or
+ * "excluded") are filtered out. Vulnerabilities are kept as-is — they reference
+ * components by ref, and filtering them would misattribute blast radius.
+ */
+function filterRuntimeOnly(sbom: SBOM): SBOM {
+  return {
+    ...sbom,
+    components: sbom.components.filter(c => c.scope === undefined || c.scope === 'required'),
+  };
 }
 
 // Only run when invoked directly (not when imported by tests).

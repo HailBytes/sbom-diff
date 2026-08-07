@@ -21,6 +21,12 @@ export interface Component {
   ecosystem?: string;
   /** Supplier / organization */
   supplier?: string;
+  /**
+   * CycloneDX component scope: "required" (runtime), "optional"
+   * (dev/test/build), or "excluded". Lets gates/reports distinguish
+   * production dependencies from dev/test ones (issue #56).
+   */
+  scope?: 'required' | 'optional' | 'excluded';
   /** Hash values keyed by algorithm (sha256, sha1, md5) */
   hashes?: Record<string, string>;
 }
