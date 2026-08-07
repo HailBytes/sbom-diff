@@ -39,6 +39,7 @@ export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
     license: extractCycloneDXLicense(c),
     ecosystem: extractEcosystemFromPurl(typeof c.purl === 'string' ? c.purl : ''),
     supplier: extractCycloneDXSupplier(c),
+    hashes: extractCycloneDXHashes(c),
   }));
 
   const vulnerabilities: CVEEntry[] = rawVulns.map((v: Record<string, unknown>) => {
@@ -89,6 +90,7 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
         license: extractSPDXLicense(pkg),
         ecosystem: extractEcosystemFromPurl(purl ?? ''),
         supplier: normalizeSPDXValue(pkg.supplier),
+        hashes: extractSPDXChecksums(pkg),
       };
     });
 
@@ -353,6 +355,42 @@ function normalizeSPDXValue(value: unknown): string | undefined {
   const trimmed = value.trim();
   if (trimmed === '' || trimmed === 'NOASSERTION' || trimmed === 'NONE') return undefined;
   return trimmed;
+}
+
+/**
+ * Extract CycloneDX component hashes (the `hashes` array of {alg, content}
+ * objects) into a `{ algorithm: value }` map. SHA-256 keys are lowercased to
+ * the standard form so digests from different generators compare equal.
+ */
+function extractCycloneDXHashes(c: Record<string, unknown>): Record<string, string> | undefined {
+  if (!Array.isArray(c.hashes) || c.hashes.length === 0) return undefined;
+  const hashes: Record<string, string> = {};
+  for (const h of c.hashes) {
+    if (typeof h !== 'object' || h === null) continue;
+    const entry = h as Record<string, unknown>;
+    if (typeof entry.alg === 'string' && typeof entry.content === 'string') {
+      hashes[entry.alg.toLowerCase()] = entry.content.toLowerCase();
+    }
+  }
+  return Object.keys(hashes).length > 0 ? hashes : undefined;
+}
+
+/**
+ * Extract SPDX package checksums (the `checksums` array of {algorithm,
+ * checksumValue} objects) into a `{ algorithm: value }` map, same shape as the
+ * CycloneDX extraction so diff() can compare them uniformly.
+ */
+function extractSPDXChecksums(pkg: Record<string, unknown>): Record<string, string> | undefined {
+  if (!Array.isArray(pkg.checksums) || pkg.checksums.length === 0) return undefined;
+  const hashes: Record<string, string> = {};
+  for (const cs of pkg.checksums) {
+    if (typeof cs !== 'object' || cs === null) continue;
+    const entry = cs as Record<string, unknown>;
+    if (typeof entry.algorithm === 'string' && typeof entry.checksumValue === 'string') {
+      hashes[entry.algorithm.toLowerCase()] = entry.checksumValue.toLowerCase();
+    }
+  }
+  return Object.keys(hashes).length > 0 ? hashes : undefined;
 }
 
 /**

@@ -86,6 +86,7 @@ describe('gateFailures', () => {
     newCVEs,
     fixedCVEs: [],
     severityEscalations: [],
+    hashChanges: [],
     summary: {
       totalAdded: 0,
       totalRemoved: 0,
@@ -95,6 +96,7 @@ describe('gateFailures', () => {
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: 0,
       totalSeverityEscalations: 0,
+      totalHashChanges: 0,
     },
   });
 

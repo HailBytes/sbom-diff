@@ -274,4 +274,37 @@ describe('diff ordering', () => {
     expect(report.severityEscalations).toHaveLength(1);
     expect(report.severityEscalations[0].toScore).toBe(9.0);
   });
+
+  it('detects a hash change on an unchanged version (issue #22)', () => {
+    const a = makesbom([
+      { name: 'event-stream', version: '4.0.1', purl: 'pkg:npm/event-stream@4.0.1', hashes: { sha256: 'aaaa' } },
+      { name: 'clean-pkg', version: '1.0.0', purl: 'pkg:npm/clean-pkg@1.0.0', hashes: { sha256: 'bbbb' } },
+    ]);
+    const b = makesbom([
+      // Same version, different digest — the tampering signal.
+      { name: 'event-stream', version: '4.0.1', purl: 'pkg:npm/event-stream@4.0.1', hashes: { sha256: 'cccc' } },
+      { name: 'clean-pkg', version: '1.0.0', purl: 'pkg:npm/clean-pkg@1.0.0', hashes: { sha256: 'bbbb' } },
+    ]);
+    const report = diff(a, b);
+    expect(report.hashChanges).toHaveLength(1);
+    expect(report.hashChanges[0].component.name).toBe('event-stream');
+    expect(report.hashChanges[0].algorithm).toBe('sha256');
+    expect(report.hashChanges[0].from).toBe('aaaa');
+    expect(report.hashChanges[0].to).toBe('cccc');
+    expect(report.summary.totalHashChanges).toBe(1);
+    // The unchanged component must not appear.
+    expect(report.upgraded).toHaveLength(0);
+  });
+
+  it('does not report a hash change when the version also changed (already an upgrade)', () => {
+    const a = makesbom([
+      { name: 'pkg', version: '1.0.0', purl: 'pkg:npm/pkg@1.0.0', hashes: { sha256: 'aaaa' } },
+    ]);
+    const b = makesbom([
+      { name: 'pkg', version: '1.0.1', purl: 'pkg:npm/pkg@1.0.1', hashes: { sha256: 'cccc' } },
+    ]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.hashChanges).toHaveLength(0);
+  });
 });

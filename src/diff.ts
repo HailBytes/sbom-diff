@@ -1,4 +1,4 @@
-import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange, SBOMIdentity, SeverityEscalation } from './types.js';
+import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange, SBOMIdentity, SeverityEscalation, HashChange } from './types.js';
 
 /**
  * Compare two parsed SBOMs and produce a ChangeReport.
@@ -17,6 +17,7 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
   const licenseChanges: LicenseChange[] = [];
 
   // Find added, upgraded, and relicensed
+  const hashChanges: HashChange[] = [];
   for (const [key, bComp] of bMap) {
     const aComp = aMap.get(key);
     if (!aComp) {
@@ -40,6 +41,22 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
     // "change" would produce noise rather than a real relicense signal.
     if (aComp.license && bComp.license && aComp.license !== bComp.license) {
       licenseChanges.push({ component: bComp, from: aComp.license, to: bComp.license });
+    }
+
+    // Hash/integrity check: a component whose version is unchanged but whose
+    // digest changed is the supply-chain tampering signal (re-published /
+    // back-doored artifact under the same name@version). Only compare digests
+    // when the version did NOT change — a version bump legitimately changes
+    // hashes, and that's already reported as an upgrade.
+    if (aComp.version === bComp.version) {
+      const aHashes = aComp.hashes ?? {};
+      const bHashes = bComp.hashes ?? {};
+      for (const [alg, bHash] of Object.entries(bHashes)) {
+        const aHash = aHashes[alg];
+        if (aHash !== undefined && aHash !== bHash) {
+          hashChanges.push({ component: bComp, algorithm: alg, from: aHash, to: bHash });
+        }
+      }
     }
   }
 
@@ -96,6 +113,7 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
     newCVEs,
     fixedCVEs,
     severityEscalations,
+    hashChanges,
     summary: {
       totalAdded: added.length,
       totalRemoved: removed.length,
@@ -105,6 +123,7 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: fixedCVEs.length,
       totalSeverityEscalations: severityEscalations.length,
+      totalHashChanges: hashChanges.length,
     },
   };
 }
