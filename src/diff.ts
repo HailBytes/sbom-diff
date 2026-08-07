@@ -153,10 +153,28 @@ function toIdentity(sbom: SBOM): SBOMIdentity {
   };
 }
 
+/**
+ * Build a component lookup map, disambiguating components that share a key.
+ *
+ * buildComponentMap previously used last-write-wins: when a single SBOM
+ * contained two components mapping to the same `purl ?? name` key, every entry
+ * but the last was silently discarded *before* the diff ran, so added/removed
+ * packages could vanish from the report entirely (issue #50).
+ *
+ * Instead, every component gets a unique key: the first occurrence keeps the
+ * bare key, subsequent collisions get a `#2`, `#3`, … suffix. All entries
+ * survive into the map and are compared. Ordering is deterministic (stable
+ * input order) so the same SBOM always yields the same keys.
+ */
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
+  const seen = new Map<string, number>();
   for (const comp of components) {
-    map.set(componentKey(comp), comp);
+    const base = componentKey(comp);
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    const key = count === 0 ? base : `${base}#${count + 1}`;
+    map.set(key, comp);
   }
   return map;
 }

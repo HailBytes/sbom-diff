@@ -307,4 +307,40 @@ describe('diff ordering', () => {
     expect(report.upgraded).toHaveLength(1);
     expect(report.hashChanges).toHaveLength(0);
   });
+
+  it('reports components that share a key instead of silently dropping them (issue #50)', () => {
+    // Two purl-less components with the same name coexist in the same SBOM
+    // (common in OS-package / container SBOMs). The old last-write-wins map
+    // silently discarded the first, hiding a real removal.
+    const a = makesbom([
+      { name: 'kernel', version: '5.15.0' },
+      { name: 'kernel', version: '5.19.0' },
+    ]);
+    const b = makesbom([
+      { name: 'kernel', version: '5.15.0' },
+    ]);
+    const report = diff(a, b);
+    // Both entries survived: one matches (unchanged), the other is a removal.
+    expect(report.removed).toHaveLength(1);
+    expect(report.removed[0].version).toBe('5.19.0');
+  });
+
+  it('matches same-key components across SBOMs by occurrence order', () => {
+    const a = makesbom([
+      { name: 'dup', version: '1.0.0' },
+      { name: 'dup', version: '2.0.0' },
+    ]);
+    const b = makesbom([
+      { name: 'dup', version: '1.0.0' },
+      { name: 'dup', version: '3.0.0' },
+    ]);
+    const report = diff(a, b);
+    // First occurrence pairs 1.0.0<->1.0.0 (unchanged); second pairs
+    // 2.0.0<->3.0.0 (upgrade). No add/remove false positives.
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].from).toBe('2.0.0');
+    expect(report.upgraded[0].to).toBe('3.0.0');
+    expect(report.added).toHaveLength(0);
+    expect(report.removed).toHaveLength(0);
+  });
 });
