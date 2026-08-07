@@ -28,9 +28,14 @@ jobs:
 
       - name: Set version from tag
         run: |
-          # Use tag version if triggered by tag push, otherwise use package.json as-is
+          # Use tag version if triggered by tag push (keep the two in sync),
+          # otherwise use package.json as-is for manual dispatch.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+            PKG_VERSION="$(node -p "require('./package.json').version")"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "warning: tag v$TAG_VERSION != package.json $PKG_VERSION; publishing as $TAG_VERSION" >&2
+            fi
             npm version "$TAG_VERSION" --no-git-tag-version
           fi
 
