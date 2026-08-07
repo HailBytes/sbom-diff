@@ -12,7 +12,8 @@ const sampleReport: ChangeReport = {
   newCVEs: [{ id: 'CVE-2023-1234', affects: 'pkg:npm/foo@1.0.0', severity: 'high' }],
   fixedCVEs: [{ id: 'CVE-2022-9999', affects: 'pkg:npm/bar@0.9.0' }],
   severityEscalations: [],
-  summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalLicenseChanges: 1, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 1, totalSeverityEscalations: 0 },
+  hashChanges: [],
+  summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalLicenseChanges: 1, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 1, totalSeverityEscalations: 0, totalHashChanges: 0 },
 };
 
 describe('renderReport', () => {
@@ -69,7 +70,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
       newCVEs: [{ id: 'CVE-2024-0001', affects: 'pkg:npm/a | b', severity: 'high', description: 'line1\nline2' }],
       fixedCVEs: [],
       severityEscalations: [],
-      summary: { totalAdded: 1, totalRemoved: 0, totalUpgraded: 0, totalLicenseChanges: 0, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 0, totalSeverityEscalations: 0 },
+      hashChanges: [],
+      summary: { totalAdded: 1, totalRemoved: 0, totalUpgraded: 0, totalLicenseChanges: 0, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 0, totalSeverityEscalations: 0, totalHashChanges: 0 },
     };
     const out = renderReport(report, 'markdown');
 
@@ -96,7 +98,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
       newCVEs: [],
       fixedCVEs: [],
       severityEscalations: [],
-      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0, totalSeverityEscalations: 0 },
+      hashChanges: [],
+      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0, totalSeverityEscalations: 0, totalHashChanges: 0 },
     };
     const out = renderReport(report, 'text');
     expect(out).toContain('Downgraded:  1');
@@ -120,7 +123,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
       newCVEs: [],
       fixedCVEs: [],
       severityEscalations: [],
-      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0, totalSeverityEscalations: 0 },
+      hashChanges: [],
+      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0, totalSeverityEscalations: 0, totalHashChanges: 0 },
     };
     const out = renderReport(report, 'markdown');
     expect(out).toContain('Downgraded Components');

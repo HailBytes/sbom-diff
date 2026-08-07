@@ -100,6 +100,22 @@ export interface SeverityEscalation {
 }
 
 /**
+ * A component whose version is unchanged but whose digest changed between the
+ * two SBOMs — the canonical supply-chain tampering signal (a re-published /
+ * back-doored artifact under the same name@version; the event-stream / xz
+ * class of attack).
+ */
+export interface HashChange {
+  component: Component;
+  /** Algorithm whose digest changed (e.g. "sha256") */
+  algorithm: string;
+  /** Digest in the old SBOM */
+  from: string;
+  /** Digest in the new SBOM */
+  to: string;
+}
+
+/**
  * Minimal carried-forward identity of one of the two SBOMs in a diff. Lets the
  * report state which artifacts it was produced from (issue #52).
  */
@@ -143,6 +159,8 @@ export interface ChangeReport {
    * newCVEs and fixedCVEs buckets, so without this they'd be invisible.
    */
   severityEscalations: SeverityEscalation[];
+  /** Components whose version is unchanged but whose digest changed (issue #22) */
+  hashChanges: HashChange[];
   summary: {
     totalAdded: number;
     totalRemoved: number;
@@ -154,6 +172,8 @@ export interface ChangeReport {
     totalFixedCVEs: number;
     /** Number of re-scored CVEs (issue #46) */
     totalSeverityEscalations: number;
+    /** Number of components with changed digests (issue #22) */
+    totalHashChanges: number;
   };
 }
 

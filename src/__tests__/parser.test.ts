@@ -61,6 +61,20 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.components[0].ecosystem).toBe('npm');
   });
 
+  it('extracts component hashes from the CycloneDX hashes array (issue #22)', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.4',
+      components: [
+        { name: 'lodash', version: '4.17.21', hashes: [{ alg: 'SHA-256', content: 'ABCDEF' }, { alg: 'SHA-1', content: '123456' }] },
+        { name: 'no-hashes', version: '1.0.0' },
+      ],
+    });
+    // Algorithms and digests are normalized to lowercase for comparison.
+    expect(sbom.components[0].hashes).toEqual({ 'sha-256': 'abcdef', 'sha-1': '123456' });
+    expect(sbom.components[1].hashes).toBeUndefined();
+  });
+
   it('parses vulnerabilities', () => {
     const sbom = parse(cyclonedxFixture);
     expect(sbom.vulnerabilities).toHaveLength(1);
@@ -284,6 +298,22 @@ describe('parse (SPDX)', () => {
     expect(sbom.components[0].name).toBe('requests');
     expect(sbom.components[0].version).toBe('2.28.0');
     expect(sbom.components[0].license).toBe('Apache-2.0');
+  });
+
+  it('extracts package checksums from the SPDX checksums array (issue #22)', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-service',
+      packages: [
+        {
+          name: 'requests',
+          SPDXID: 'SPDXRef-requests',
+          versionInfo: '2.28.0',
+          checksums: [{ algorithm: 'SHA256', checksumValue: 'ABCDEF' }],
+        },
+      ],
+    });
+    expect(sbom.components[0].hashes).toEqual({ sha256: 'abcdef' });
   });
 
   it('treats NOASSERTION/NONE version and supplier sentinels as undefined', () => {

@@ -54,6 +54,7 @@ function renderText(r: ChangeReport): string {
   lines.push(`  Licenses:    ${r.summary.totalLicenseChanges}`);
   lines.push(`  New CVEs:    ${r.summary.totalNewCVEs}`);
   lines.push(`  Fixed CVEs:  ${r.summary.totalFixedCVEs}`);
+  lines.push(`  Hash changes: ${r.summary.totalHashChanges}`);
   lines.push('');
 
   if (r.added.length > 0) {
@@ -116,6 +117,13 @@ function renderText(r: ChangeReport): string {
     }
     lines.push('');
   }
+  if (r.hashChanges.length > 0) {
+    lines.push('\u26a0 Hash Changes (potential supply-chain tampering):');
+    for (const hc of r.hashChanges) {
+      lines.push(`  \u26a0 ${hc.component.name}@${hc.component.version} [${hc.algorithm}: ${hc.from} \u2192 ${hc.to}]`);
+    }
+    lines.push('');
+  }
 
   return lines.join('\n');
 }
@@ -158,6 +166,7 @@ function renderMarkdown(r: ChangeReport): string {
     `| New CVEs | ${r.summary.totalNewCVEs} |`,
     `| Fixed CVEs | ${r.summary.totalFixedCVEs} |`,
     `| Severity escalations | ${r.summary.totalSeverityEscalations} |`,
+    `| Hash changes | ${r.summary.totalHashChanges} |`,
     '',
   ];
 
@@ -224,6 +233,14 @@ lines.push('| CVE ID | Severity | CVSS | Affects |');
     lines.push('|--------|------|----|------|---------|');
     for (const e of r.severityEscalations) {
       lines.push(`| ${escapeCell(e.cve.id)} | ${escapeCell(e.fromSeverity ?? 'none')} | ${escapeCell(e.toSeverity ?? 'none')} | ${escapeCell(e.fromScore !== undefined && e.toScore !== undefined ? `${e.fromScore} \u2192 ${e.toScore}` : undefined)} | ${escapeCell(e.cve.affects)} |`);
+    }
+  }
+  if (r.hashChanges.length > 0) {
+    lines.push('## \u26a0\ufe0f Hash Changes (supply-chain tampering)', '');
+    lines.push('| Component | Version | Algorithm | From | To |');
+    lines.push('|-----------|---------|-----------|------|----|');
+    for (const hc of r.hashChanges) {
+      lines.push(`| ${escapeCell(hc.component.name)} | ${escapeCell(hc.component.version)} | ${escapeCell(hc.algorithm)} | \`${escapeCell(hc.from)}\` | \`${escapeCell(hc.to)}\` |`);
     }
   }
 
