@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parse, detectFormat } from '../parser.js';
+import { diff } from '../diff.js';
 
 const cyclonedxFixture = {
   bomFormat: 'CycloneDX',
@@ -200,6 +201,34 @@ describe('parse (SPDX)', () => {
     expect(sbom.components[0].name).toBe('requests');
     expect(sbom.components[0].version).toBe('2.28.0');
     expect(sbom.components[0].license).toBe('Apache-2.0');
+  });
+
+  it('treats NOASSERTION/NONE version and supplier sentinels as undefined', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-service',
+      packages: [
+        { name: 'internal-lib', versionInfo: 'NOASSERTION', supplier: 'NOASSERTION' },
+        { name: 'other-lib', versionInfo: 'NONE', supplier: 'Organization: Acme' },
+      ],
+    });
+    expect(sbom.components[0].version).toBeUndefined();
+    expect(sbom.components[0].supplier).toBeUndefined();
+    expect(sbom.components[1].version).toBeUndefined();
+    expect(sbom.components[1].supplier).toBe('Organization: Acme');
+  });
+
+  it('does not report a spurious upgrade when the old version is NOASSERTION', () => {
+    const old = parse({
+      spdxVersion: 'SPDX-2.3',
+      packages: [{ name: 'internal-lib', versionInfo: 'NOASSERTION' }],
+    });
+    const next = parse({
+      spdxVersion: 'SPDX-2.3',
+      packages: [{ name: 'internal-lib', versionInfo: '2.0.0' }],
+    });
+    const report = diff(old, next);
+    expect(report.upgraded).toHaveLength(0);
   });
 });
 

@@ -70,10 +70,10 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
   const components: Component[] = packages.map((pkg: Record<string, unknown>) => ({
     purl: extractSPDXPurl(pkg),
     name: typeof pkg.name === 'string' ? pkg.name : 'unknown',
-    version: typeof pkg.versionInfo === 'string' ? pkg.versionInfo : undefined,
+    version: normalizeSPDXValue(pkg.versionInfo),
     license: typeof pkg.licenseConcluded === 'string' ? pkg.licenseConcluded : undefined,
     ecosystem: extractEcosystemFromPurl(extractSPDXPurl(pkg) ?? ''),
-    supplier: typeof pkg.supplier === 'string' ? pkg.supplier : undefined,
+    supplier: normalizeSPDXValue(pkg.supplier),
   }));
 
   return {
@@ -227,6 +227,26 @@ function extractCycloneDXRating(v: Record<string, unknown>): {
 
 function extractCycloneDXTimestamp(metadata: Record<string, unknown>): string | undefined {
   return typeof metadata.timestamp === 'string' ? metadata.timestamp : undefined;
+}
+
+/**
+ * Normalize an SPDX string field, treating the spec's `NOASSERTION` and `NONE`
+ * sentinels as "no value" (undefined) rather than real data.
+ *
+ * These sentinels are extremely common in generator output (e.g. `versionInfo:
+ * "NOASSERTION"` when a version can't be determined). Storing them verbatim
+ * corrupts the diff: a package whose version is "NOASSERTION" in the old SBOM
+ * and "2.0.0" in the new one is reported as an upgrade `NOASSERTION → 2.0.0`,
+ * which is meaningless. Collapsing the sentinel to undefined lets the diff's
+ * "both versions known" guard correctly skip it.
+ *
+ * (License normalization is handled separately — see PR #32.)
+ */
+function normalizeSPDXValue(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed === 'NOASSERTION' || trimmed === 'NONE') return undefined;
+  return trimmed;
 }
 
 function extractSPDXPurl(pkg: Record<string, unknown>): string | undefined {
