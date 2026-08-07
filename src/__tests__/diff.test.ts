@@ -42,14 +42,34 @@ describe('diff', () => {
     expect(report.removed[0].name).toBe('moment');
   });
 
-  it('detects version upgrades', () => {
+  it('detects version upgrades even when purls are present', () => {
+    // purls embed the version, so a version bump changes the purl. The diff must
+    // still match on the version-independent purl coordinate and report an upgrade
+    // rather than a spurious add + remove — this is the tool's headline feature.
     const a = makesbom([{ name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20' }]);
     const b = makesbom([{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' }]);
     const report = diff(a, b);
-    // Different purl = treated as add/remove (purl includes version)
-    // With our current purl-based key: 4.17.20 -> removed, 4.17.21 -> added
-    // This is correct behavior — different purls are different packages
-    expect(report.added.length + report.removed.length + report.upgraded.length).toBeGreaterThan(0);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.added).toHaveLength(0);
+    expect(report.removed).toHaveLength(0);
+    expect(report.upgraded[0].from).toBe('4.17.20');
+    expect(report.upgraded[0].to).toBe('4.17.21');
+  });
+
+  it('matches scoped purls on their coordinate, not the scope "@"', () => {
+    // The scope's "@" (@babel) must not be mistaken for the version delimiter.
+    const a = makesbom([{ name: '@babel/core', version: '7.20.0', purl: 'pkg:npm/@babel/core@7.20.0' }]);
+    const b = makesbom([{ name: '@babel/core', version: '8.0.0', purl: 'pkg:npm/@babel/core@8.0.0' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
+    expect(report.upgraded[0].isMajorBump).toBe(true);
+  });
+
+  it('matches components whose purls carry qualifiers or a subpath', () => {
+    const a = makesbom([{ name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20?arch=x64#lib' }]);
+    const b = makesbom([{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21?arch=x64#lib' }]);
+    const report = diff(a, b);
+    expect(report.upgraded).toHaveLength(1);
   });
 
   it('detects version upgrades when matched by name (no purl)', () => {

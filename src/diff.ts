@@ -63,11 +63,45 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
 function buildComponentMap(components: Component[]): Map<string, Component> {
   const map = new Map<string, Component>();
   for (const comp of components) {
-    // Prefer purl as key, fall back to name
-    const key = comp.purl ?? comp.name;
-    map.set(key, comp);
+    map.set(componentKey(comp), comp);
   }
   return map;
+}
+
+/**
+ * Build a version-independent identity key for a component so the same package
+ * at two different versions matches across SBOMs (and is reported as an upgrade
+ * rather than an add + remove).
+ *
+ * A purl embeds the version (`pkg:npm/lodash@4.17.21`), so keying on the raw
+ * purl would make every upgrade look like a removal plus an addition — silently
+ * breaking the tool's headline "upgraded dependencies" feature for any real SBOM,
+ * since real SBOMs almost always carry purls. We therefore key on the purl
+ * *coordinate* (the purl with its version stripped), falling back to the name.
+ */
+function componentKey(comp: Component): string {
+  if (comp.purl) {
+    const coord = purlCoordinate(comp.purl);
+    if (coord) return coord;
+  }
+  return `name:${comp.name.toLowerCase()}`;
+}
+
+/**
+ * Strip the version (and any qualifiers/subpath) from a purl, yielding a stable
+ * coordinate such as `pkg:npm/lodash` or `pkg:npm/@babel/core`.
+ *
+ * purl grammar: `pkg:type/namespace.../name@version?qualifiers#subpath`. The
+ * version is delimited by the `@` that follows the final path segment, so we
+ * drop the subpath and qualifiers first, then cut at the `@` after the last `/`.
+ * This leaves scoped names intact (the scope's `@` precedes a `/`).
+ */
+function purlCoordinate(purl: string): string {
+  const base = purl.split('#')[0].split('?')[0];
+  const lastSlash = base.lastIndexOf('/');
+  const versionAt = base.indexOf('@', lastSlash + 1);
+  const coordinate = versionAt === -1 ? base : base.slice(0, versionAt);
+  return coordinate.toLowerCase();
 }
 
 /**
