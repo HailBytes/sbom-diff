@@ -43,7 +43,7 @@ describe('renderReport', () => {
     expect(() => renderReport(sampleReport, 'xml' as never)).toThrow();
   });
 
-  it('escapes pipes and newlines in markdown cells so the table stays well-formed', () => {
+it('escapes pipes and newlines in markdown cells so the table stays well-formed', () => {
     const report: ChangeReport = {
       added: [{ name: 'evil | pkg', version: '1.0', ecosystem: 'npm' }],
       removed: [],
@@ -57,7 +57,7 @@ describe('renderReport', () => {
 
     // The pipe in the package name must be escaped, not interpreted as a column break.
     expect(out).toContain('| evil \\| pkg | 1.0 | npm |');
-    expect(out).toContain('| CVE-2024-0001 | high | \u2014 | pkg:npm/a \\| b |');
+    expect(out).toContain('| CVE-2024-0001 | high | — | pkg:npm/a \\| b |');
 
     // Every body row under the Added table must keep its column count (4 leading bars: 3 cells).
     const addedRow = out.split('\n').find(l => l.includes('evil'))!;
@@ -103,5 +103,16 @@ describe('renderReport', () => {
     expect(out).toContain('| left-pad | 1.3.0 | 1.1.0 |');
     expect(out).toContain('| Downgraded components | 1 |');
     expect(out).not.toContain('## ⬆️ Upgraded Components');
+  });
+
+it('annotates the VEX analysis state on new CVEs in text and markdown', () => {
+    const report: ChangeReport = {
+      ...sampleReport,
+      newCVEs: [
+        { id: 'CVE-2024-2000', affects: 'pkg:npm/foo@1.0.0', severity: 'critical', analysisState: 'not_affected' },
+      ],
+    };
+    expect(renderReport(report, 'text')).toContain('(VEX: not_affected)');
+    expect(renderReport(report, 'markdown')).toContain('(VEX: not_affected)');
   });
 });

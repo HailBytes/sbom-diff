@@ -159,6 +159,28 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.vulnerabilities![0].severity).toBeUndefined();
   });
 
+  it('parses the VEX analysis state and lowercases it', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2024-1000',
+          affects: [{ ref: 'pkg:npm/foo@1.0.0' }],
+          ratings: [{ severity: 'critical' }],
+          analysis: { state: 'Not_Affected' },
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].analysisState).toBe('not_affected');
+  });
+
+  it('leaves analysisState undefined when no analysis block is present', () => {
+    const sbom = parse(cyclonedxFixture);
+    expect(sbom.vulnerabilities![0].analysisState).toBeUndefined();
+  });
+
   it('parses metadata name and version', () => {
     const sbom = parse(cyclonedxFixture);
     expect(sbom.name).toBe('my-app');

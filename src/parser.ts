@@ -49,6 +49,7 @@ export function parseCycloneDX(obj: Record<string, unknown>): SBOM {
       severity,
       cvssScore,
       description: typeof v.description === 'string' ? v.description : undefined,
+      analysisState: extractCycloneDXAnalysisState(v),
     };
   });
 
@@ -282,6 +283,18 @@ function extractCycloneDXRating(v: Record<string, unknown>): {
     }
   }
   return { severity, cvssScore };
+}
+
+/**
+ * Extract the VEX analysis state from a CycloneDX vulnerability's `analysis.state`.
+ * Returned lowercased so downstream comparisons are case-insensitive; undefined
+ * when no analysis block is present.
+ */
+function extractCycloneDXAnalysisState(v: Record<string, unknown>): string | undefined {
+  const analysis = v.analysis;
+  if (!analysis || typeof analysis !== 'object') return undefined;
+  const state = (analysis as Record<string, unknown>).state;
+  return typeof state === 'string' ? state.toLowerCase() : undefined;
 }
 
 function extractCycloneDXTimestamp(metadata: Record<string, unknown>): string | undefined {
