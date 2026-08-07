@@ -92,7 +92,11 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
  * Parse a JSON string or object into an SBOM, auto-detecting format.
  */
 export function parse(input: string | Record<string, unknown>): SBOM {
-  const obj: Record<string, unknown> = typeof input === 'string' ? JSON.parse(input) : input;
+  // Strip a leading UTF-8 byte order mark (U+FEFF) before parsing. Several SBOM
+  // generators and Windows text tooling emit BOM-prefixed JSON, which is valid
+  // on disk but makes JSON.parse throw a cryptic "Unexpected token" error.
+  const obj: Record<string, unknown> =
+    typeof input === 'string' ? JSON.parse(input.replace(/^\uFEFF/, '')) : input;
   const format = detectFormat(obj);
 
   switch (format) {
