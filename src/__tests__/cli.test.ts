@@ -77,12 +77,15 @@ describe('gateFailures', () => {
   });
 
   const reportWith = (newCVEs: CVEEntry[]): ChangeReport => ({
+    from: { format: 'cyclonedx', specVersion: '1.4' },
+    to: { format: 'cyclonedx', specVersion: '1.4' },
     added: [],
     removed: [],
     upgraded: [],
     licenseChanges: [],
     newCVEs,
     fixedCVEs: [],
+    severityEscalations: [],
     summary: {
       totalAdded: 0,
       totalRemoved: 0,
@@ -91,6 +94,7 @@ describe('gateFailures', () => {
       totalDowngraded: 0,
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: 0,
+      totalSeverityEscalations: 0,
     },
   });
 

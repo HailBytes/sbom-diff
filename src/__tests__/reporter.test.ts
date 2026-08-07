@@ -3,13 +3,16 @@ import { renderReport } from '../reporter.js';
 import type { ChangeReport } from '../types.js';
 
 const sampleReport: ChangeReport = {
+  from: { format: 'cyclonedx', specVersion: '1.4', name: 'my-app', version: '1.2.0', generatedAt: '2026-07-01T00:00:00Z' },
+  to: { format: 'cyclonedx', specVersion: '1.4', name: 'my-app', version: '1.3.0', generatedAt: '2026-08-01T00:00:00Z' },
   added: [{ name: 'express', version: '4.18.2', ecosystem: 'npm' }],
   removed: [{ name: 'moment', version: '2.29.4' }],
   upgraded: [{ component: { name: 'lodash', version: '4.17.21' }, from: '4.17.20', to: '4.17.21', isMajorBump: false, isDowngrade: false }],
   licenseChanges: [{ component: { name: 'chalk', version: '5.3.0' }, from: 'MIT', to: 'GPL-3.0' }],
   newCVEs: [{ id: 'CVE-2023-1234', affects: 'pkg:npm/foo@1.0.0', severity: 'high' }],
   fixedCVEs: [{ id: 'CVE-2022-9999', affects: 'pkg:npm/bar@0.9.0' }],
-  summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalLicenseChanges: 1, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 1 },
+  severityEscalations: [],
+  summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalLicenseChanges: 1, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 1, totalSeverityEscalations: 0 },
 };
 
 describe('renderReport', () => {
@@ -39,19 +42,34 @@ describe('renderReport', () => {
     expect(out).toContain('| chalk | MIT | GPL-3.0 |');
   });
 
+  it('states which two artifacts were compared (issue #52)', () => {
+    const text = renderReport(sampleReport, 'text');
+    expect(text).toContain('my-app v1.2.0');
+    expect(text).toContain('my-app v1.3.0');
+    expect(text).toContain('cyclonedx 1.4');
+    expect(text).toContain('generated 2026-07-01');
+    const md = renderReport(sampleReport, 'markdown');
+    expect(md).toContain('## Compared');
+    expect(md).toContain('| From | my-app v1.2.0');
+    expect(md).toContain('| To | my-app v1.3.0');
+  });
+
   it('throws on unsupported format', () => {
     expect(() => renderReport(sampleReport, 'xml' as never)).toThrow();
   });
 
 it('escapes pipes and newlines in markdown cells so the table stays well-formed', () => {
     const report: ChangeReport = {
+      from: { format: 'cyclonedx', specVersion: '1.4' },
+      to: { format: 'cyclonedx', specVersion: '1.4' },
       added: [{ name: 'evil | pkg', version: '1.0', ecosystem: 'npm' }],
       removed: [],
       upgraded: [],
       licenseChanges: [],
       newCVEs: [{ id: 'CVE-2024-0001', affects: 'pkg:npm/a | b', severity: 'high', description: 'line1\nline2' }],
       fixedCVEs: [],
-      summary: { totalAdded: 1, totalRemoved: 0, totalUpgraded: 0, totalLicenseChanges: 0, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 0 },
+      severityEscalations: [],
+      summary: { totalAdded: 1, totalRemoved: 0, totalUpgraded: 0, totalLicenseChanges: 0, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 0, totalSeverityEscalations: 0 },
     };
     const out = renderReport(report, 'markdown');
 
@@ -66,6 +84,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
 
   it('separates downgrades from upgrades in text output', () => {
     const report: ChangeReport = {
+      from: { format: 'cyclonedx', specVersion: '1.4' },
+      to: { format: 'cyclonedx', specVersion: '1.4' },
       added: [],
       removed: [],
       upgraded: [
@@ -75,7 +95,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
       licenseChanges: [],
       newCVEs: [],
       fixedCVEs: [],
-      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 2, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0 },
+      severityEscalations: [],
+      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0, totalSeverityEscalations: 0 },
     };
     const out = renderReport(report, 'text');
     expect(out).toContain('Downgraded:  1');
@@ -88,6 +109,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
 
   it('renders a downgrades table in markdown output', () => {
     const report: ChangeReport = {
+      from: { format: 'cyclonedx', specVersion: '1.4' },
+      to: { format: 'cyclonedx', specVersion: '1.4' },
       added: [],
       removed: [],
       upgraded: [
@@ -96,7 +119,8 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
       licenseChanges: [],
       newCVEs: [],
       fixedCVEs: [],
-      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0 },
+      severityEscalations: [],
+      summary: { totalAdded: 0, totalRemoved: 0, totalUpgraded: 1, totalLicenseChanges: 0, totalDowngraded: 1, totalNewCVEs: 0, totalFixedCVEs: 0, totalSeverityEscalations: 0 },
     };
     const out = renderReport(report, 'markdown');
     expect(out).toContain('Downgraded Components');
