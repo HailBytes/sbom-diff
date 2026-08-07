@@ -531,3 +531,108 @@ describe('parse (input validation, issue #21)', () => {
     expect(parse({ spdxVersion: 'SPDX-2.3', packages: [] }).format).toBe('spdx');
   });
 });
+
+describe('parse (CycloneDX XML, issue #27)', () => {
+  const xmlFixture = `<?xml version="1.0" encoding="UTF-8"?>
+<bom xmlns="http://cyclonedx.org/schema/bom/1.5" version="1">
+  <components>
+    <component type="library">
+      <name>lodash</name>
+      <version>4.17.20</version>
+      <purl>pkg:npm/lodash@4.17.20</purl>
+      <hashes><hash alg="SHA-256">ABCDEF123456</hash></hashes>
+    </component>
+    <component type="library" scope="optional">
+      <name>dev-tool</name>
+      <version>1.0.0</version>
+      <purl>pkg:npm/dev-tool@1.0.0</purl>
+      <licenses><license><id>MIT</id></license></licenses>
+    </component>
+  </components>
+  <vulnerabilities>
+    <vulnerability>
+      <id>CVE-2021-44228</id>
+      <ratings><rating><severity>critical</severity><score>10.0</score></rating></ratings>
+      <affects><target><ref>pkg:npm/lodash@4.17.20</ref></target></affects>
+      <description>Log4Shell</description>
+      <analysis><state>exploitable</state></analysis>
+    </vulnerability>
+  </vulnerabilities>
+</bom>`;
+
+  it('auto-routes a leading-< string to the XML parser', () => {
+    const sbom = parse(xmlFixture);
+    expect(sbom.format).toBe('cyclonedx');
+    expect(sbom.components).toHaveLength(2);
+    expect(sbom.specVersion).toBe('1.5');
+  });
+
+  it('maps XML components onto the canonical model (name/version/purl/hashes/scope/license)', () => {
+    const sbom = parse(xmlFixture);
+    expect(sbom.components[0]).toMatchObject({
+      name: 'lodash',
+      version: '4.17.20',
+      purl: 'pkg:npm/lodash@4.17.20',
+      ecosystem: 'npm',
+      hashes: { 'sha-256': 'abcdef123456' },
+    });
+    expect(sbom.components[0].scope).toBeUndefined(); // absent scope = runtime default
+    expect(sbom.components[1].scope).toBe('optional');
+    expect(sbom.components[1].license).toBe('MIT');
+  });
+
+  it('maps XML vulnerabilities (id/severity/affects/description/VEX state)', () => {
+    const sbom = parse(xmlFixture);
+    expect(sbom.vulnerabilities).toHaveLength(1);
+    expect(sbom.vulnerabilities![0]).toMatchObject({
+      id: 'CVE-2021-44228',
+      severity: 'critical',
+      cvssScore: 10.0,
+      affects: ['pkg:npm/lodash@4.17.20'],
+      description: 'Log4Shell',
+      analysisState: 'exploitable',
+    });
+  });
+
+  it('produces the same ChangeReport as the equivalent JSON input', () => {
+    const xml = parse(`<bom xmlns="http://cyclonedx.org/schema/bom/1.5">
+      <components>
+        <component type="library"><name>lodash</name><version>4.17.20</version><purl>pkg:npm/lodash@4.17.20</purl></component>
+        <component type="library"><name>express</name><version>4.18.2</version><purl>pkg:npm/express@4.18.2</purl></component>
+      </components>
+    </bom>`);
+    const json = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [
+        { name: 'lodash', version: '4.17.20', purl: 'pkg:npm/lodash@4.17.20' },
+        { name: 'express', version: '4.18.2', purl: 'pkg:npm/express@4.18.2' },
+      ],
+    });
+    const xmlNew = parse(`<bom xmlns="http://cyclonedx.org/schema/bom/1.5">
+      <components>
+        <component type="library"><name>lodash</name><version>4.17.21</version><purl>pkg:npm/lodash@4.17.21</purl></component>
+        <component type="library"><name>express</name><version>4.18.2</version><purl>pkg:npm/express@4.18.2</purl></component>
+        <component type="library"><name>new-pkg</name><version>1.0.0</version><purl>pkg:npm/new-pkg@1.0.0</purl></component>
+      </components>
+    </bom>`);
+    const jsonNew = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [
+        { name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.21' },
+        { name: 'express', version: '4.18.2', purl: 'pkg:npm/express@4.18.2' },
+        { name: 'new-pkg', version: '1.0.0', purl: 'pkg:npm/new-pkg@1.0.0' },
+      ],
+    });
+    expect(diff(xml, xmlNew)).toEqual(diff(json, jsonNew));
+  });
+
+  it('throws a clear ParseError for malformed XML', () => {
+    expect(() => parse('<bom><components>')).toThrow(/not valid XML|expected a <bom>|empty or truncated/);
+  });
+
+  it('throws a clear ParseError for non-bom XML', () => {
+    expect(() => parse('<html><body>hi</body></html>')).toThrow(/expected a <bom>/);
+  });
+});
