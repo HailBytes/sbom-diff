@@ -13,7 +13,7 @@ export interface Component {
   purl?: string;
   /** Component name */
   name: string;
-  /** Component version */
+  /** Component version (falls back to the version encoded in the purl when absent) */
   version?: string;
   /** SPDX license expression or CycloneDX license */
   license?: string;

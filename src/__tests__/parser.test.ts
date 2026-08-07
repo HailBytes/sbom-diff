@@ -215,6 +215,43 @@ describe('parse (CycloneDX)', () => {
     });
     expect(sbom.components[0].license).toBe('MIT OR Apache-2.0');
   });
+
+  it('derives the version from the purl when the version field is absent', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [
+        // Valid CycloneDX: `version` is optional; the purl carries it.
+        { name: 'lodash', purl: 'pkg:npm/lodash@4.17.21' },
+        // Scoped npm package: the `%40` is encoded, so the version `@` is the last one.
+        { name: 'core', purl: 'pkg:npm/%40angular/core@17.0.0' },
+        // Version with qualifiers/subpath must be stripped.
+        { name: 'pg', purl: 'pkg:npm/pg@8.11.3?foo=bar#sub' },
+      ],
+    });
+    expect(sbom.components[0].version).toBe('4.17.21');
+    expect(sbom.components[1].version).toBe('17.0.0');
+    expect(sbom.components[2].version).toBe('8.11.3');
+  });
+
+  it('prefers the explicit version field over the purl version', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [{ name: 'lodash', version: '4.17.21', purl: 'pkg:npm/lodash@4.17.20' }],
+    });
+    expect(sbom.components[0].version).toBe('4.17.21');
+  });
+
+  it('leaves version undefined when neither the field nor the purl carries one', () => {
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      components: [{ name: 'foo', purl: 'pkg:npm/foo' }, { name: 'bare' }],
+    });
+    expect(sbom.components[0].version).toBeUndefined();
+    expect(sbom.components[1].version).toBeUndefined();
+  });
 });
 
 describe('parse (SPDX)', () => {
@@ -240,6 +277,20 @@ describe('parse (SPDX)', () => {
     expect(sbom.components[0].supplier).toBeUndefined();
     expect(sbom.components[1].version).toBeUndefined();
     expect(sbom.components[1].supplier).toBe('Organization: Acme');
+  });
+
+  it('derives the version from the purl externalRef when versionInfo is absent', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-service',
+      packages: [
+        {
+          name: 'requests',
+          externalRefs: [{ referenceType: 'purl', referenceLocator: 'pkg:pypi/requests@2.28.0' }],
+        },
+      ],
+    });
+    expect(sbom.components[0].version).toBe('2.28.0');
   });
 
   it('does not report a spurious upgrade when the old version is NOASSERTION', () => {
@@ -320,6 +371,20 @@ describe('parse (SPDX)', () => {
       ],
     });
     expect(sbom.components).toHaveLength(2);
+  });
+
+  it('derives the version from the purl when versionInfo is absent', () => {
+    const sbom = parse({
+      spdxVersion: 'SPDX-2.3',
+      name: 'my-app',
+      packages: [
+        {
+          name: 'requests',
+          externalRefs: [{ referenceType: 'purl', referenceLocator: 'pkg:pypi/requests@2.28.0' }],
+        },
+      ],
+    });
+    expect(sbom.components[0].version).toBe('2.28.0');
   });
 });
 
