@@ -29,8 +29,8 @@ export interface Component {
 export interface CVEEntry {
   /** CVE ID, e.g. "CVE-2021-44228" */
   id: string;
-  /** Affected component purl or name */
-  affects: string;
+  /** Affected component purl(s) or name(s) — a CVE may hit multiple packages */
+  affects: string[];
   /** Severity: none, low, medium, high, critical */
   severity?: 'none' | 'low' | 'medium' | 'high' | 'critical';
   /** CVSS score 0.0–10.0 */

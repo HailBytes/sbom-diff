@@ -9,8 +9,8 @@ const sampleReport: ChangeReport = {
   removed: [{ name: 'moment', version: '2.29.4' }],
   upgraded: [{ component: { name: 'lodash', version: '4.17.21' }, from: '4.17.20', to: '4.17.21', isMajorBump: false, isDowngrade: false }],
   licenseChanges: [{ component: { name: 'chalk', version: '5.3.0' }, from: 'MIT', to: 'GPL-3.0' }],
-  newCVEs: [{ id: 'CVE-2023-1234', affects: 'pkg:npm/foo@1.0.0', severity: 'high' }],
-  fixedCVEs: [{ id: 'CVE-2022-9999', affects: 'pkg:npm/bar@0.9.0' }],
+  newCVEs: [{ id: 'CVE-2023-1234', affects: ['pkg:npm/foo@1.0.0'], severity: 'high' }],
+  fixedCVEs: [{ id: 'CVE-2022-9999', affects: ['pkg:npm/bar@0.9.0'] }],
   severityEscalations: [],
   hashChanges: [],
   summary: { totalAdded: 1, totalRemoved: 1, totalUpgraded: 1, totalLicenseChanges: 1, totalDowngraded: 0, totalNewCVEs: 1, totalFixedCVEs: 1, totalSeverityEscalations: 0, totalHashChanges: 0 },
@@ -67,7 +67,7 @@ it('escapes pipes and newlines in markdown cells so the table stays well-formed'
       removed: [],
       upgraded: [],
       licenseChanges: [],
-      newCVEs: [{ id: 'CVE-2024-0001', affects: 'pkg:npm/a | b', severity: 'high', description: 'line1\nline2' }],
+      newCVEs: [{ id: 'CVE-2024-0001', affects: ['pkg:npm/a | b'], severity: 'high', description: 'line1\nline2' }],
       fixedCVEs: [],
       severityEscalations: [],
       hashChanges: [],
@@ -137,7 +137,7 @@ it('annotates the VEX analysis state on new CVEs in text and markdown', () => {
     const report: ChangeReport = {
       ...sampleReport,
       newCVEs: [
-        { id: 'CVE-2024-2000', affects: 'pkg:npm/foo@1.0.0', severity: 'critical', analysisState: 'not_affected' },
+        { id: 'CVE-2024-2000', affects: ['pkg:npm/foo@1.0.0'], severity: 'critical', analysisState: 'not_affected' },
       ],
     };
     expect(renderReport(report, 'text')).toContain('(VEX: not_affected)');

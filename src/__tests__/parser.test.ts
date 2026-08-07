@@ -82,6 +82,29 @@ describe('parse (CycloneDX)', () => {
     expect(sbom.vulnerabilities![0].severity).toBe('critical');
   });
 
+  it('keeps every affected component, not just the first (issue #30)', () => {
+    // Log4Shell hits both log4j-core and log4j-api; the old parser kept only
+    // affects[0], hiding the blast radius.
+    const sbom = parse({
+      bomFormat: 'CycloneDX',
+      specVersion: '1.4',
+      components: [],
+      vulnerabilities: [
+        {
+          id: 'CVE-2021-44228',
+          affects: [
+            { ref: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1' },
+            { ref: 'pkg:maven/org.apache.logging.log4j/log4j-api@2.14.1' },
+          ],
+        },
+      ],
+    });
+    expect(sbom.vulnerabilities![0].affects).toEqual([
+      'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1',
+      'pkg:maven/org.apache.logging.log4j/log4j-api@2.14.1',
+    ]);
+  });
+
   it('reports the highest severity when a CVE has multiple ratings', () => {
     const sbom = parse({
       bomFormat: 'CycloneDX',

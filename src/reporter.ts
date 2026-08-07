@@ -24,6 +24,11 @@ function vexNote(v: CVEEntry): string {
   return v.analysisState ? ` (VEX: ${v.analysisState})` : '';
 }
 
+/** Join a CVE's affected components into a display string (blast radius). */
+function joinAffects(v: CVEEntry): string {
+  return (v.affects ?? ['unknown']).join(', ');
+}
+
 /**
  * Render a ChangeReport to a human-readable string.
  *
@@ -95,14 +100,14 @@ function renderText(r: ChangeReport): string {
     lines.push('\u26a0 New CVEs:');
     for (const v of r.newCVEs) {
       const score = v.cvssScore !== undefined ? `, CVSS ${v.cvssScore}` : '';
-      lines.push(`  ! ${v.id} [${v.severity ?? 'unknown'}${score}]${vexNote(v)} — ${v.affects}`);
+      lines.push(`  ! ${v.id} [${v.severity ?? 'unknown'}${score}]${vexNote(v)} — ${joinAffects(v)}`);
     }
     lines.push('');
   }
   if (r.fixedCVEs.length > 0) {
     lines.push('\u2713 Fixed CVEs:');
     for (const v of r.fixedCVEs) {
-      lines.push(`  \u2713 ${v.id} \u2014 ${v.affects}`);
+      lines.push(`  \u2713 ${v.id} \u2014 ${joinAffects(v)}`);
     }
   }
   if (r.severityEscalations.length > 0) {
@@ -113,7 +118,7 @@ function renderText(r: ChangeReport): string {
       const score = e.toScore !== undefined && e.fromScore !== undefined
         ? ` (CVSS ${e.fromScore} \u2192 ${e.toScore})`
         : '';
-      lines.push(`  \u26a0 ${e.cve.id} [${from} \u2192 ${to}${score}] \u2014 ${e.cve.affects}`);
+      lines.push(`  \u26a0 ${e.cve.id} [${from} \u2192 ${to}${score}] \u2014 ${joinAffects(e.cve)}`);
     }
     lines.push('');
   }
@@ -217,7 +222,7 @@ lines.push('| CVE ID | Severity | CVSS | Affects |');
     lines.push('|--------|----------|------|---------|');
     for (const v of r.newCVEs) {
       const score = v.cvssScore !== undefined ? String(v.cvssScore) : '—';
-      lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.severity)}${vexNote(v)} | ${escapeCell(score)} | ${escapeCell(v.affects)} |`);
+      lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.severity)}${vexNote(v)} | ${escapeCell(score)} | ${escapeCell(joinAffects(v))} |`);
     }
     lines.push('');
   }
@@ -225,14 +230,14 @@ lines.push('| CVE ID | Severity | CVSS | Affects |');
     lines.push('## \u2705 Fixed CVEs', '');
     lines.push('| CVE ID | Affects |');
     lines.push('|--------|---------|');
-    for (const v of r.fixedCVEs) lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.affects)} |`);
+    for (const v of r.fixedCVEs) lines.push(`| ${escapeCell(v.id)} | ${escapeCell(joinAffects(v))} |`);
   }
   if (r.severityEscalations.length > 0) {
     lines.push('## \u26a0\ufe0f Severity Escalations', '');
     lines.push('| CVE ID | From | To | CVSS | Affects |');
     lines.push('|--------|------|----|------|---------|');
     for (const e of r.severityEscalations) {
-      lines.push(`| ${escapeCell(e.cve.id)} | ${escapeCell(e.fromSeverity ?? 'none')} | ${escapeCell(e.toSeverity ?? 'none')} | ${escapeCell(e.fromScore !== undefined && e.toScore !== undefined ? `${e.fromScore} \u2192 ${e.toScore}` : undefined)} | ${escapeCell(e.cve.affects)} |`);
+      lines.push(`| ${escapeCell(e.cve.id)} | ${escapeCell(e.fromSeverity ?? 'none')} | ${escapeCell(e.toSeverity ?? 'none')} | ${escapeCell(e.fromScore !== undefined && e.toScore !== undefined ? `${e.fromScore} \u2192 ${e.toScore}` : undefined)} | ${escapeCell(joinAffects(e.cve))} |`);
     }
   }
   if (r.hashChanges.length > 0) {
