@@ -44,6 +44,17 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
   const newCVEs = [...bVulns.values()].filter(v => !aVulns.has(v.id));
   const fixedCVEs = [...aVulns.values()].filter(v => !bVulns.has(v.id));
 
+  // Order the report deterministically so it is reproducible regardless of the
+  // (arbitrary) order in which the source SBOM listed its components/vulns.
+  // Stable output matters for the headline use cases: committed audit trails and
+  // PR-comment diffs stay quiet unless something *actually* changed, and the
+  // highest-risk findings (critical CVEs, major bumps) surface at the top.
+  added.sort(compareComponents);
+  removed.sort(compareComponents);
+  upgraded.sort(compareVersionChanges);
+  newCVEs.sort(compareCVEs);
+  fixedCVEs.sort(compareCVEs);
+
   return {
     added,
     removed,
@@ -113,4 +124,33 @@ function isMajorVersionBump(from: string, to: string): boolean {
   const toMajor = parseInt(to.replace(/^[^0-9]*/, ''), 10);
   if (isNaN(fromMajor) || isNaN(toMajor)) return false;
   return toMajor > fromMajor;
+}
+
+// --- Deterministic ordering ---
+
+/** Severity ordering, highest to lowest, for sorting CVEs by risk. */
+const CVE_SEVERITY_ORDER: Record<NonNullable<CVEEntry['severity']>, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  none: 4,
+};
+
+/** Sort components by name, then version, for stable add/remove listings. */
+function compareComponents(a: Component, b: Component): number {
+  return a.name.localeCompare(b.name) || (a.version ?? '').localeCompare(b.version ?? '');
+}
+
+/** Sort upgrades with major bumps first (highest risk), then by name. */
+function compareVersionChanges(a: VersionChange, b: VersionChange): number {
+  if (a.isMajorBump !== b.isMajorBump) return a.isMajorBump ? -1 : 1;
+  return compareComponents(a.component, b.component);
+}
+
+/** Sort CVEs by severity (most severe first), then by ID for stability. */
+function compareCVEs(a: CVEEntry, b: CVEEntry): number {
+  const rankA = a.severity ? CVE_SEVERITY_ORDER[a.severity] : 5;
+  const rankB = b.severity ? CVE_SEVERITY_ORDER[b.severity] : 5;
+  return rankA - rankB || a.id.localeCompare(b.id);
 }
