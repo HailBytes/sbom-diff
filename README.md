@@ -63,6 +63,15 @@ your pipeline stops on risky changes:
   run: npx @hailbytes/sbom-diff sbom.base.json sbom.pr.json --fail-on high
 ```
 
+> **Note:** the gate can only see vulnerabilities that are **embedded in the
+> SBOMs** you compare. SPDX 2.x has no vulnerability field, and the default
+> output of common CycloneDX generators omits one, so `--fail-on` has nothing to
+> evaluate for those inputs and will pass. When a gate is armed but neither SBOM
+> carries vulnerability data, the CLI prints a warning to `stderr` so a green
+> result is never mistaken for "no new CVEs". To enable CVE gating, feed SBOMs
+> that include a CycloneDX 1.4+ `vulnerabilities` list (e.g. from a scan/VEX
+> step).
+
 ### Programmatic
 ```ts
 import { readFile } from 'node:fs/promises';

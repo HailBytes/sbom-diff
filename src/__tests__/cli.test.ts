@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs, gateFailures } from '../cli.js';
-import type { ChangeReport, CVEEntry } from '../types.js';
+import { parseArgs, gateFailures, gateWarning } from '../cli.js';
+import type { ChangeReport, CVEEntry, SBOM } from '../types.js';
 
 describe('parseArgs', () => {
   it('defaults to text format when no flag is given', () => {
@@ -118,5 +118,43 @@ describe('gateFailures', () => {
     expect(gateFailures(report, 'critical')).toEqual([]);
     // ...but "any" still catches them.
     expect(gateFailures(report, 'any').map(v => v.id)).toEqual(['CVE-unknown']);
+  });
+});
+
+describe('gateWarning', () => {
+  const sbom = (vulnerabilities: SBOM['vulnerabilities'] = []): SBOM => ({
+    format: 'cyclonedx',
+    components: [],
+    vulnerabilities,
+  });
+  const withCve: SBOM = sbom([{ id: 'CVE-1', affects: 'pkg:npm/example', severity: 'high' }]);
+
+  it('returns null when the gate is off, even without vulnerability data', () => {
+    expect(gateWarning(sbom(), sbom(), 'none')).toBeNull();
+  });
+
+  it('warns when a gate is armed but neither SBOM carries vulnerability data', () => {
+    const warning = gateWarning(sbom(), sbom(), 'high');
+    expect(warning).toMatch(/--fail-on "high"/);
+    expect(warning).toMatch(/neither SBOM contains vulnerability data/);
+  });
+
+  it('warns for the "any" policy too', () => {
+    expect(gateWarning(sbom(), sbom(), 'any')).toMatch(/neither SBOM contains vulnerability data/);
+  });
+
+  it('stays silent when the old SBOM carries vulnerability data', () => {
+    expect(gateWarning(withCve, sbom(), 'critical')).toBeNull();
+  });
+
+  it('stays silent when the new SBOM carries vulnerability data', () => {
+    expect(gateWarning(sbom(), withCve, 'critical')).toBeNull();
+  });
+
+  it('treats a missing vulnerabilities field as no data', () => {
+    const noField: SBOM = { format: 'spdx', components: [] };
+    expect(gateWarning(noField, noField, 'medium')).toMatch(
+      /neither SBOM contains vulnerability data/,
+    );
   });
 });
