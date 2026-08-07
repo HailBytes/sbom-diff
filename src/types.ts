@@ -66,6 +66,15 @@ export interface VersionChange {
   isMajorBump: boolean;
 }
 
+/** A license change for a component present in both SBOMs (e.g. MIT -> GPL-3.0) */
+export interface LicenseChange {
+  component: Component;
+  /** License declared in the old SBOM */
+  from: string;
+  /** License declared in the new SBOM */
+  to: string;
+}
+
 /** The full result of diffing two SBOMs */
 export interface ChangeReport {
   /** Components in B but not in A */
@@ -74,6 +83,8 @@ export interface ChangeReport {
   removed: Component[];
   /** Components where the version changed */
   upgraded: VersionChange[];
+  /** Components present in both SBOMs whose declared license changed */
+  licenseChanges: LicenseChange[];
   /** Vulnerabilities in B but not in A */
   newCVEs: CVEEntry[];
   /** Vulnerabilities in A but not in B (fixed) */
@@ -82,6 +93,7 @@ export interface ChangeReport {
     totalAdded: number;
     totalRemoved: number;
     totalUpgraded: number;
+    totalLicenseChanges: number;
     totalNewCVEs: number;
     totalFixedCVEs: number;
   };

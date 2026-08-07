@@ -21,6 +21,7 @@ function renderText(r: ChangeReport): string {
   lines.push(`  Added:       ${r.summary.totalAdded}`);
   lines.push(`  Removed:     ${r.summary.totalRemoved}`);
   lines.push(`  Upgraded:    ${r.summary.totalUpgraded}`);
+  lines.push(`  Licenses:    ${r.summary.totalLicenseChanges}`);
   lines.push(`  New CVEs:    ${r.summary.totalNewCVEs}`);
   lines.push(`  Fixed CVEs:  ${r.summary.totalFixedCVEs}`);
   lines.push('');
@@ -40,6 +41,13 @@ function renderText(r: ChangeReport): string {
     for (const u of r.upgraded) {
       const major = u.isMajorBump ? ' [MAJOR]' : '';
       lines.push(`  ~ ${u.component.name}: ${u.from} \u2192 ${u.to}${major}`);
+    }
+    lines.push('');
+  }
+  if (r.licenseChanges.length > 0) {
+    lines.push('\u2696 License Changes:');
+    for (const l of r.licenseChanges) {
+      lines.push(`  ~ ${l.component.name}: ${l.from} \u2192 ${l.to}`);
     }
     lines.push('');
   }
@@ -72,6 +80,7 @@ function renderMarkdown(r: ChangeReport): string {
     `| Added components | ${r.summary.totalAdded} |`,
     `| Removed components | ${r.summary.totalRemoved} |`,
     `| Upgraded components | ${r.summary.totalUpgraded} |`,
+    `| License changes | ${r.summary.totalLicenseChanges} |`,
     `| New CVEs | ${r.summary.totalNewCVEs} |`,
     `| Fixed CVEs | ${r.summary.totalFixedCVEs} |`,
     '',
@@ -98,6 +107,13 @@ function renderMarkdown(r: ChangeReport): string {
     for (const u of r.upgraded) {
       lines.push(`| ${u.component.name} | ${u.from} | ${u.to} | ${u.isMajorBump ? '\u26a0\ufe0f Yes' : 'No'} |`);
     }
+    lines.push('');
+  }
+  if (r.licenseChanges.length > 0) {
+    lines.push('## \u2696\ufe0f License Changes', '');
+    lines.push('| Component | From | To |');
+    lines.push('|-----------|------|----|');
+    for (const l of r.licenseChanges) lines.push(`| ${l.component.name} | ${l.from} | ${l.to} |`);
     lines.push('');
   }
   if (r.newCVEs.length > 0) {

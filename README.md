@@ -14,7 +14,7 @@
 
 ## What it does
 
-Compare two CycloneDX or SPDX SBOM files and instantly see what changed: added packages, removed packages, version upgrades, and newly introduced CVEs. Output as human-readable text, JSON, or Markdown — perfect for CI/CD gates and audit trails.
+Compare two CycloneDX or SPDX SBOM files and instantly see what changed: added packages, removed packages, version upgrades, license changes (e.g. a dependency that switched from MIT to GPL-3.0), and newly introduced CVEs. Output as human-readable text, JSON, or Markdown — perfect for CI/CD gates and audit trails.
 
 ---
 
@@ -84,10 +84,11 @@ const newSBOM = parse(await readFile('new.cdx.json', 'utf-8'));
 
 const report = diff(oldSBOM, newSBOM);
 
-console.log(report.added);    // Component[]     — newly added packages
-console.log(report.removed);  // Component[]     — packages removed
-console.log(report.upgraded); // VersionChange[] — { component, from, to, isMajorBump }
-console.log(report.newCVEs);  // CVEEntry[]      — vulnerabilities new in the latest SBOM
+console.log(report.added);          // Component[]     — newly added packages
+console.log(report.removed);        // Component[]     — packages removed
+console.log(report.upgraded);       // VersionChange[] — { component, from, to, isMajorBump }
+console.log(report.licenseChanges); // LicenseChange[] — { component, from, to } (e.g. MIT → GPL-3.0)
+console.log(report.newCVEs);        // CVEEntry[]      — vulnerabilities new in the latest SBOM
 
 // Or render a ready-made report in text, JSON, or markdown:
 console.log(renderReport(report, 'markdown'));
