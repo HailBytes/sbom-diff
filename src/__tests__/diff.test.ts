@@ -115,6 +115,29 @@ describe('diff', () => {
     expect(report.upgraded[0].isMajorBump).toBe(false);
   });
 
+  it('flags a 0.x minor bump as breaking (semver initial-development rule)', () => {
+    // Under semver's 0.x clause — honoured by npm's caret, Cargo, Composer —
+    // a minor bump while major is 0 is a breaking change.
+    const a = makesbom([{ name: 'ky', version: '0.1.0' }]);
+    const b = makesbom([{ name: 'ky', version: '0.2.0' }]);
+    const report = diff(a, b);
+    expect(report.upgraded[0].isMajorBump).toBe(true);
+  });
+
+  it('does not flag a 0.x patch bump as breaking', () => {
+    const a = makesbom([{ name: 'ky', version: '0.2.0' }]);
+    const b = makesbom([{ name: 'ky', version: '0.2.1' }]);
+    const report = diff(a, b);
+    expect(report.upgraded[0].isMajorBump).toBe(false);
+  });
+
+  it('flags a 0.x -> 1.x graduation as breaking', () => {
+    const a = makesbom([{ name: 'ky', version: '0.9.0' }]);
+    const b = makesbom([{ name: 'ky', version: '1.0.0' }]);
+    const report = diff(a, b);
+    expect(report.upgraded[0].isMajorBump).toBe(true);
+  });
+
   it('detects new CVEs', () => {
     const cve = { id: 'CVE-2021-44228', affects: 'pkg:npm/log4j@2.14.1', severity: 'critical' as const };
     const a = makesbom([]);

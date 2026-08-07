@@ -132,14 +132,34 @@ function purlCoordinate(purl: string): string {
 }
 
 /**
- * Returns true if the major version changed (semver-style).
- * Handles versions like "1.2.3", "2.0.0-beta", etc.
+ * Returns true if an upgrade crosses a breaking-change boundary under semver.
+ *
+ * For 1.0.0 and above that means the major component increased
+ * (e.g. 1.4.0 -> 2.0.0). For 0.x releases semver's "initial development"
+ * clause says anything MAY change at any time, and the wider ecosystem
+ * (npm's `^0.2.0` caret, Cargo, Composer, ...) treats a *minor* bump as
+ * breaking. So while the major is 0, a change in the minor component
+ * (e.g. 0.1.0 -> 0.2.0) is also flagged as major/breaking. Without this,
+ * breaking upgrades of the many pre-1.0 packages in a typical dependency
+ * tree were silently reported as safe.
+ *
+ * Handles versions like "1.2.3", "2.0.0-beta", "v1.0.0", etc. Downgrades
+ * are not treated as bumps here.
  */
 function isMajorVersionBump(from: string, to: string): boolean {
-  const fromMajor = parseInt(from.replace(/^[^0-9]*/, ''), 10);
-  const toMajor = parseInt(to.replace(/^[^0-9]*/, ''), 10);
-  if (isNaN(fromMajor) || isNaN(toMajor)) return false;
-  return toMajor > fromMajor;
+  const f = parseVersion(from);
+  const t = parseVersion(to);
+  if (!f || !t) return false;
+  if (t.major !== f.major) return t.major > f.major;
+  if (f.major === 0 && t.minor !== f.minor) return t.minor > f.minor;
+  return false;
+}
+
+/** Parse the leading major.minor out of a version string, tolerating a "v" prefix and pre-release/build suffixes. */
+function parseVersion(v: string): { major: number; minor: number } | null {
+  const match = v.replace(/^[^0-9]*/, '').match(/^(\d+)(?:\.(\d+))?/);
+  if (!match) return null;
+  return { major: parseInt(match[1], 10), minor: match[2] ? parseInt(match[2], 10) : 0 };
 }
 
 // --- Deterministic ordering ---
