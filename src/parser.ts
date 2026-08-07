@@ -1,4 +1,16 @@
 import type { SBOM, Component, CVEEntry, SBOMFormat } from './types.js';
+import { XMLParser } from 'fast-xml-parser';
+
+/**
+ * CycloneDX XML parser — shared instance (no per-call alloc overhead).
+ * Ignores attributes, collapses arrays, and preserves the xmlns namespace
+ * prefix so the XML tree maps to the same property names as the JSON parser.
+ */
+const _xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  isArray: (name) => name === 'component' || name === 'vulnerability' || name === 'hash' || name === 'rating' || name === 'affects' || name === 'target' || name === 'license' || name === 'reference',
+});
 
 /**
  * Detect the SBOM format from a parsed JSON object.
@@ -108,11 +120,230 @@ export function parseSPDX(obj: Record<string, unknown>): SBOM {
 }
 
 /**
- * Thrown when parse() is given input that is not a recognized SBOM document.
- * The message explains what was expected so a wrong-format file (package.json,
- * a truncated export, garbage JSON) fails loudly instead of silently passing
- * a CI gate with "nothing changed".
+ * Parse a CycloneDX XML document into the canonical SBOM model.
+ *
+ * Field mapping mirrors the JSON parser so diff() and renderReport() are
+ * format-agnostic: components (name/version/purl/licenses/supplier/hashes/
+ * scope), metadata (name/version/timestamp), and vulnerabilities (id/ratings
+ * severity/affects/description) all map onto the same shapes.
+ *
+ * Throws ParseError on malformed XML or a document that isn't a CycloneDX BOM.
  */
+export function parseCycloneDXXML(xml: string): SBOM {
+  let doc: unknown;
+  try {
+    doc = _xmlParser.parse(xml.replace(/^\uFEFF/, ''));
+  } catch (e) {
+    throw new ParseError(`input is not valid XML: ${(e as Error).message}`);
+  }
+
+  if (typeof doc !== 'object' || doc === null) {
+    throw new ParseError('input is not a CycloneDX XML document: expected a <bom> root element');
+  }
+
+  // The root may be namespaced ("bom" plain or "bom:..."), and fast-xml-parser
+  // strips namespace prefixes from tag names by default.
+  const root = doc as Record<string, unknown>;
+  const bom = (root.bom ?? root['cyclonedx:bom']) as Record<string, unknown> | undefined;
+  if (!bom || typeof bom !== 'object') {
+    throw new ParseError('input is not a CycloneDX XML document: expected a <bom> root element');
+  }
+  // A truncated/unclosed bom (e.g. "<bom><components>") parses leniently to an
+  // empty or string-valued node. Require at least one meaningful section.
+  const hasContent =
+    (bom.components !== undefined && bom.components !== '' && bom.components !== null) ||
+    (bom.vulnerabilities !== undefined && bom.vulnerabilities !== '' && bom.vulnerabilities !== null) ||
+    (bom.metadata !== undefined && bom.metadata !== '' && bom.metadata !== null) ||
+    stringField(bom.serialNumber) !== undefined;
+  if (!hasContent) {
+    throw new ParseError('input is not a valid CycloneDX XML document: <bom> is empty or truncated');
+  }
+
+  const rawComponents = collectXMLElements(bom.components, 'component');
+  const metadata = bom.metadata && typeof bom.metadata === 'object' ? bom.metadata as Record<string, unknown> : {};
+  const component = metadata.component && typeof metadata.component === 'object'
+    ? metadata.component as Record<string, unknown>
+    : {};
+
+  const components: Component[] = rawComponents.map((c: Record<string, unknown>) => ({
+    purl: stringField(c.purl),
+    name: stringField(c.name) ?? 'unknown',
+    version: stringField(c.version) ?? extractVersionFromPurl(stringField(c.purl) ?? ''),
+    license: extractXMLLicense(c.licenses),
+    ecosystem: extractEcosystemFromPurl(stringField(c.purl) ?? ''),
+    supplier: extractXMLSupplier(c.supplier),
+    scope: extractXMLScope(c),
+    hashes: extractXMLHashes(c.hashes),
+  }));
+
+  const vulnerabilities: CVEEntry[] = collectXMLElements(bom.vulnerabilities, 'vulnerability').map((v: Record<string, unknown>) => {
+    const { severity, cvssScore } = extractXMlRating(v.ratings);
+    return {
+      id: stringField(v.id) ?? 'UNKNOWN',
+      affects: extractXMLAffects(v.affects),
+      severity,
+      cvssScore,
+      description: stringField(v.description),
+      analysisState: extractXMLAnalysisState(v),
+    };
+  });
+
+  return {
+    format: 'cyclonedx',
+    // The spec version lives in the namespace URI (…/schema/bom/1.5), NOT the
+    // `version` attribute (which is the BOM document version, an incrementing
+    // integer). Prefer the xmlns; fall back to an explicit <version> text.
+    specVersion: extractXMLSpecVersion(bom),
+    name: stringField(component.name) ?? stringField(bom.serialNumber) ?? undefined,
+    version: stringField(component.version) ?? undefined,
+    generatedAt: extractXMLTimestamp(metadata),
+    components,
+    vulnerabilities,
+  };
+}
+
+// --- XML helpers ---
+
+/** Read a string field, tolerating absent/empty values. */
+function stringField(v: unknown): string | undefined {
+  if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  return undefined;
+}
+
+/** Collect a (possibly singular or namespaced) XML element list into an array. */
+function collectXMLElements(parent: unknown, tag: string): Record<string, unknown>[] {
+  if (!parent || typeof parent !== 'object') return [];
+  const obj = parent as Record<string, unknown>;
+  const direct = obj[tag] ?? obj[`cyclonedx:${tag}`];
+  if (direct === undefined) return [];
+  const list = Array.isArray(direct) ? direct : [direct];
+  return list.filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null);
+}
+
+/** Extract a license id/name from <licenses><license>…</license></licenses>. */
+function extractXMLLicense(licenses: unknown): string | undefined {
+  const entries = collectXMLElements(licenses, 'license');
+  for (const entry of entries) {
+    const id = stringField(entry.id) ?? stringField(entry['cyclonedx:id']);
+    if (id) return id;
+    const name = stringField(entry.name) ?? stringField(entry['cyclonedx:name']);
+    if (name) return name;
+  }
+  return undefined;
+}
+
+/** Extract the supplier organization name from <supplier><name>…</name></supplier>. */
+function extractXMLSupplier(supplier: unknown): string | undefined {
+  if (!supplier || typeof supplier !== 'object') return undefined;
+  const obj = supplier as Record<string, unknown>;
+  return stringField(obj.name) ?? stringField(obj['cyclonedx:name']);
+}
+
+/** Extract the CycloneDX scope attribute (type="required"|"optional"|"excluded"). */
+function extractXMLScope(c: Record<string, unknown>): 'required' | 'optional' | 'excluded' | undefined {
+  const scope = stringField(c['@_scope']) ?? stringField(c.scope);
+  if (scope === 'required' || scope === 'optional' || scope === 'excluded') return scope;
+  return undefined;
+}
+
+/** Extract <hashes><hash alg="SHA-256">…</hash></hashes> into a {alg: value} map. */
+function extractXMLHashes(hashes: unknown): Record<string, string> | undefined {
+  const entries = collectXMLElements(hashes, 'hash');
+  if (entries.length === 0) return undefined;
+  const out: Record<string, string> = {};
+  for (const h of entries) {
+    const alg = stringField(h['@_alg']);
+    const value = stringField(h['#text']);
+    if (alg && value) out[alg.toLowerCase()] = value.toLowerCase();
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Extract the highest severity + CVSS from <ratings><rating>…</rating></ratings>. */
+function extractXMlRating(ratings: unknown): { severity?: CVEEntry['severity']; cvssScore?: number } {
+  const entries = collectXMLElements(ratings, 'rating');
+  let best: { severity?: CVEEntry['severity']; cvssScore?: number } = {};
+  for (const r of entries) {
+    const severity = stringField(r.severity) as CVEEntry['severity'] | undefined;
+    // fast-xml-parser returns numeric elements as JS numbers, so accept both.
+    const raw = r.score;
+    const cvssScore = typeof raw === 'number' ? raw : stringField(raw) !== undefined ? Number(stringField(raw)) : undefined;
+    if (
+      severity !== undefined &&
+      severityRank(severity) > severityRank(best.severity)
+    ) {
+      best = { severity, cvssScore: cvssScore !== undefined && !Number.isNaN(cvssScore) ? cvssScore : undefined };
+    }
+  }
+  return best;
+}
+
+/** Extract the affected refs from <affects><target><ref>…</ref></target></affects>. */
+function extractXMLAffects(affects: unknown): string[] {
+  // `<affects>` can contain one or more `<target>` elements; fast-xml-parser
+  // gives us either a single target object or an array of them (possibly under
+  // the namespaced key). Normalize both shapes first.
+  let targets: unknown[] = [];
+  if (Array.isArray(affects)) {
+    for (const entry of affects) {
+      if (!entry || typeof entry !== 'object') continue;
+      const obj = entry as Record<string, unknown>;
+      const t = obj.target ?? obj['cyclonedx:target'];
+      if (Array.isArray(t)) targets.push(...t);
+      else if (t !== undefined) targets.push(t);
+    }
+  } else if (affects && typeof affects === 'object') {
+    const obj = affects as Record<string, unknown>;
+    const t = obj.target ?? obj['cyclonedx:target'];
+    if (Array.isArray(t)) targets = t;
+    else if (t !== undefined) targets = [t];
+  }
+  const refs: string[] = [];
+  for (const t of targets) {
+    if (!t || typeof t !== 'object') continue;
+    const target = t as Record<string, unknown>;
+    const ref = stringField(target.ref) ?? stringField(target['cyclonedx:ref']);
+    if (ref) refs.push(ref);
+  }
+  return refs.length > 0 ? refs : ['unknown'];
+}
+
+/** Extract the VEX analysis state from <analysis><state>…</state></analysis>. */
+function extractXMLAnalysisState(v: Record<string, unknown>): string | undefined {
+  const analysis = v.analysis;
+  if (!analysis || typeof analysis !== 'object') return undefined;
+  const obj = analysis as Record<string, unknown>;
+  const state = stringField(obj.state);
+  return state ? state.toLowerCase() : undefined;
+}
+
+/** Extract the generation timestamp from <metadata><timestamp>…</timestamp></metadata>. */
+function extractXMLTimestamp(metadata: Record<string, unknown>): string | undefined {
+  return stringField(metadata.timestamp);
+}
+
+/** Extract the CycloneDX spec version from the xmlns namespace URI. */
+function extractXMLSpecVersion(bom: Record<string, unknown>): string | undefined {
+  const xmlns = stringField(bom['@_xmlns']) ?? stringField(bom['@_xmlns:cyclonedx']);
+  if (xmlns) {
+    const match = /\/bom\/([0-9]+\.[0-9]+)\/?$/.exec(xmlns);
+    if (match) return match[1];
+  }
+  // Fallback: an explicit <version> child (rare) — NOT the @version attribute,
+  // which is the document version, not the spec version.
+  return stringField(bom.version);
+}
+
+/** Severity ordering used by the XML rating picker (shared with diff.ts logic). */
+function severityRank(sev: string | undefined): number {
+  switch (sev) {
+    case 'critical': return 4;
+    case 'high': return 3;
+    case 'medium': return 2;
+    case 'low': return 1;
+    default: return 0;
+  }
+}
 export class ParseError extends Error {
   constructor(message: string) {
     super(message);
@@ -121,7 +352,10 @@ export class ParseError extends Error {
 }
 
 /**
- * Parse a JSON string or object into an SBOM, auto-detecting format.
+ * Parse a JSON string, XML string, or object into an SBOM, auto-detecting
+ * format. CycloneDX XML (the default output of cyclonedx-maven-plugin,
+ * cyclonedx-gradle-plugin, and many enterprise toolchains) is routed to the
+ * XML parser; JSON strings and objects go through the JSON path (issue #27).
  *
  * Throws ParseError when the input is not a recognized CycloneDX or SPDX
  * document. Silently accepting wrong-format input as an empty SBOM is a
@@ -129,6 +363,10 @@ export class ParseError extends Error {
  * sail through a CI gate as if nothing changed (issue #21).
  */
 export function parse(input: string | Record<string, unknown>): SBOM {
+  if (typeof input === 'string' && looksLikeXML(input)) {
+    return parseCycloneDXXML(input);
+  }
+
   let obj: unknown;
   if (typeof input === 'string') {
     try {
@@ -159,6 +397,12 @@ export function parse(input: string | Record<string, unknown>): SBOM {
         'input is not a recognized SBOM: missing CycloneDX "bomFormat" field and SPDX "spdxVersion" field'
       );
   }
+}
+
+/** True when a string starts with `<` (after optional BOM/whitespace), i.e. XML. */
+function looksLikeXML(input: string): boolean {
+  const trimmed = input.replace(/^\uFEFF/, '').trimStart();
+  return trimmed.startsWith('<');
 }
 
 // --- Helpers ---
