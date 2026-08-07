@@ -10,9 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Cover the engines.node range declared in package.json (>=18):
-        # the supported minimum, current LTS, and latest LTS.
-        node-version: ['18', '20', '22']
+        # Cover the engines.node range declared in package.json (>=20.19):
+        # current LTS and latest LTS. Node 18 is EOL for this stack — the
+        # eslint 10 toolchain requires ^20.19.0 || ^22.13.0 || >=24.
+        node-version: ['20', '22']
     name: ci (Node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
