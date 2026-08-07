@@ -1,4 +1,4 @@
-import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange, SBOMIdentity } from './types.js';
+import type { SBOM, Component, CVEEntry, ChangeReport, VersionChange, LicenseChange, SBOMIdentity, SeverityEscalation } from './types.js';
 
 /**
  * Compare two parsed SBOMs and produce a ChangeReport.
@@ -57,6 +57,24 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
   const newCVEs = [...bVulns.values()].filter(v => !aVulns.has(v.id));
   const fixedCVEs = [...aVulns.values()].filter(v => !bVulns.has(v.id));
 
+  // Severity escalation detection: a CVE present in both SBOMs whose severity
+  // or CVSS score was re-scored (e.g. medium → critical). Without this bucket
+  // such CVEs fall into neither newCVEs nor fixedCVEs and are invisible.
+  const severityEscalations: SeverityEscalation[] = [];
+  for (const [id, bVuln] of bVulns) {
+    const aVuln = aVulns.get(id);
+    if (!aVuln) continue; // already in newCVEs
+    const fromSev = aVuln.severity;
+    const toSev = bVuln.severity;
+    const fromScore = aVuln.cvssScore;
+    const toScore = bVuln.cvssScore;
+    // Report the escalation when severity rank increased or CVSS score rose.
+    // A drop (e.g. critical → high) is a de-escalation and is not flagged.
+    if (severityRank(fromSev) < severityRank(toSev) || (fromScore !== undefined && toScore !== undefined && toScore > fromScore)) {
+      severityEscalations.push({ cve: bVuln, fromSeverity: fromSev, toSeverity: toSev, fromScore, toScore });
+    }
+  }
+
   // Order the report deterministically so it is reproducible regardless of the
   // (arbitrary) order in which the source SBOM listed its components/vulns.
   // Stable output matters for the headline use cases: committed audit trails and
@@ -77,6 +95,7 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
     licenseChanges,
     newCVEs,
     fixedCVEs,
+    severityEscalations,
     summary: {
       totalAdded: added.length,
       totalRemoved: removed.length,
@@ -85,8 +104,23 @@ export function diff(a: SBOM, b: SBOM): ChangeReport {
       totalDowngraded: upgraded.filter(u => u.isDowngrade).length,
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: fixedCVEs.length,
+      totalSeverityEscalations: severityEscalations.length,
     },
   };
+}
+
+/**
+ * Map a severity label to an ordinal rank so we can compare them.
+ * undefined/none = 0, low = 1, medium = 2, high = 3, critical = 4.
+ */
+function severityRank(sev: string | undefined): number {
+  switch (sev) {
+    case 'critical': return 4;
+    case 'high': return 3;
+    case 'medium': return 2;
+    case 'low': return 1;
+    default: return 0;
+  }
 }
 
 /** Carry the parsed SBOM's identity fields forward into a diff report. */

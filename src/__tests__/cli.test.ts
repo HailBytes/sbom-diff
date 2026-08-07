@@ -85,6 +85,7 @@ describe('gateFailures', () => {
     licenseChanges: [],
     newCVEs,
     fixedCVEs: [],
+    severityEscalations: [],
     summary: {
       totalAdded: 0,
       totalRemoved: 0,
@@ -93,6 +94,7 @@ describe('gateFailures', () => {
       totalDowngraded: 0,
       totalNewCVEs: newCVEs.length,
       totalFixedCVEs: 0,
+      totalSeverityEscalations: 0,
     },
   });
 

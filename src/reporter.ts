@@ -104,6 +104,18 @@ function renderText(r: ChangeReport): string {
       lines.push(`  \u2713 ${v.id} \u2014 ${v.affects}`);
     }
   }
+  if (r.severityEscalations.length > 0) {
+    lines.push('\u26a0 Severity Escalations:');
+    for (const e of r.severityEscalations) {
+      const from = e.fromSeverity ?? 'none';
+      const to = e.toSeverity ?? 'none';
+      const score = e.toScore !== undefined && e.fromScore !== undefined
+        ? ` (CVSS ${e.fromScore} \u2192 ${e.toScore})`
+        : '';
+      lines.push(`  \u26a0 ${e.cve.id} [${from} \u2192 ${to}${score}] \u2014 ${e.cve.affects}`);
+    }
+    lines.push('');
+  }
 
   return lines.join('\n');
 }
@@ -145,6 +157,7 @@ function renderMarkdown(r: ChangeReport): string {
     `| License changes | ${r.summary.totalLicenseChanges} |`,
     `| New CVEs | ${r.summary.totalNewCVEs} |`,
     `| Fixed CVEs | ${r.summary.totalFixedCVEs} |`,
+    `| Severity escalations | ${r.summary.totalSeverityEscalations} |`,
     '',
   ];
 
@@ -204,6 +217,14 @@ lines.push('| CVE ID | Severity | CVSS | Affects |');
     lines.push('| CVE ID | Affects |');
     lines.push('|--------|---------|');
     for (const v of r.fixedCVEs) lines.push(`| ${escapeCell(v.id)} | ${escapeCell(v.affects)} |`);
+  }
+  if (r.severityEscalations.length > 0) {
+    lines.push('## \u26a0\ufe0f Severity Escalations', '');
+    lines.push('| CVE ID | From | To | CVSS | Affects |');
+    lines.push('|--------|------|----|------|---------|');
+    for (const e of r.severityEscalations) {
+      lines.push(`| ${escapeCell(e.cve.id)} | ${escapeCell(e.fromSeverity ?? 'none')} | ${escapeCell(e.toSeverity ?? 'none')} | ${escapeCell(e.fromScore !== undefined && e.toScore !== undefined ? `${e.fromScore} \u2192 ${e.toScore}` : undefined)} | ${escapeCell(e.cve.affects)} |`);
+    }
   }
 
   return lines.join('\n');

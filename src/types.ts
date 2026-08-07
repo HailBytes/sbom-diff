@@ -85,6 +85,20 @@ export interface LicenseChange {
   to: string;
 }
 
+/** A CVE present in both SBOMs whose severity or CVSS score was re-scored */
+export interface SeverityEscalation {
+  /** The CVE entry as it now appears in the new SBOM */
+  cve: CVEEntry;
+  /** Severity in the old SBOM (undefined if it had none) */
+  fromSeverity?: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  /** Severity in the new SBOM (undefined if it had none) */
+  toSeverity?: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  /** CVSS score in the old SBOM (undefined if it had none) */
+  fromScore?: number;
+  /** CVSS score in the new SBOM (undefined if it had none) */
+  toScore?: number;
+}
+
 /**
  * Minimal carried-forward identity of one of the two SBOMs in a diff. Lets the
  * report state which artifacts it was produced from (issue #52).
@@ -123,6 +137,12 @@ export interface ChangeReport {
   newCVEs: CVEEntry[];
   /** Vulnerabilities in A but not in B (fixed) */
   fixedCVEs: CVEEntry[];
+  /**
+   * CVEs present in both SBOMs whose severity / CVSS score was re-scored
+   * between the scans (e.g. medium → critical). Absent from both the
+   * newCVEs and fixedCVEs buckets, so without this they'd be invisible.
+   */
+  severityEscalations: SeverityEscalation[];
   summary: {
     totalAdded: number;
     totalRemoved: number;
@@ -132,6 +152,8 @@ export interface ChangeReport {
     totalDowngraded: number;
     totalNewCVEs: number;
     totalFixedCVEs: number;
+    /** Number of re-scored CVEs (issue #46) */
+    totalSeverityEscalations: number;
   };
 }
 

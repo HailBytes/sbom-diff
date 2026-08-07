@@ -238,4 +238,40 @@ describe('diff ordering', () => {
     const empty = makesbom([]);
     expect(diff(empty, order1)).toEqual(diff(empty, order2));
   });
+
+  it('detects a CVE whose severity was re-scored between scans (issue #46)', () => {
+    const a = makesbom([], [
+      { id: 'CVE-2021-44228', affects: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1', severity: 'medium', cvssScore: 6.0 },
+      { id: 'CVE-2023-0001', affects: 'pkg:npm/foo@1.0.0', severity: 'high', cvssScore: 8.0 },
+    ]);
+    const b = makesbom([], [
+      { id: 'CVE-2021-44228', affects: 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1', severity: 'critical', cvssScore: 10.0 },
+      { id: 'CVE-2023-0001', affects: 'pkg:npm/foo@1.0.0', severity: 'low', cvssScore: 3.0 },
+    ]);
+    const report = diff(a, b);
+    // The escalated CVE is in neither newCVEs nor fixedCVEs.
+    expect(report.newCVEs).toHaveLength(0);
+    expect(report.fixedCVEs).toHaveLength(0);
+    // Only the escalation (medium → critical) is flagged; the de-escalation
+    // (high → low) is not.
+    expect(report.severityEscalations).toHaveLength(1);
+    expect(report.severityEscalations[0].cve.id).toBe('CVE-2021-44228');
+    expect(report.severityEscalations[0].fromSeverity).toBe('medium');
+    expect(report.severityEscalations[0].toSeverity).toBe('critical');
+    expect(report.severityEscalations[0].fromScore).toBe(6.0);
+    expect(report.severityEscalations[0].toScore).toBe(10.0);
+    expect(report.summary.totalSeverityEscalations).toBe(1);
+  });
+
+  it('flags a CVSS score rise even when the severity label is unchanged', () => {
+    const a = makesbom([], [
+      { id: 'CVE-2024-0001', affects: 'pkg:npm/a@1.0.0', severity: 'high', cvssScore: 7.0 },
+    ]);
+    const b = makesbom([], [
+      { id: 'CVE-2024-0001', affects: 'pkg:npm/a@1.0.0', severity: 'high', cvssScore: 9.0 },
+    ]);
+    const report = diff(a, b);
+    expect(report.severityEscalations).toHaveLength(1);
+    expect(report.severityEscalations[0].toScore).toBe(9.0);
+  });
 });
