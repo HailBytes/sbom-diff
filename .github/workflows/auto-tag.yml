@@ -1,8 +1,7 @@
 name: CI + Auto Tag & Publish
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: 
 
 jobs:
   ci-and-tag:
